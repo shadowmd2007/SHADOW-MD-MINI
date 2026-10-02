@@ -40,4 +40,3 @@ export async function handleMessage(sock, msg) {
 
   await command.run({ sock, msg, remote, sender, isOwner, isGroup, args, text });
 }
-
