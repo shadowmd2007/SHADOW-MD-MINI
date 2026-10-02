@@ -1,10 +1,17 @@
 import express from "express";
 import pino from "pino";
-import makeWASocket, {
-  DisconnectReason,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion
-} from "@whiskeysockets/baileys";
+import * as BaileysModule from "@whiskeysockets/baileys";
+
+// Handle both ESM and CommonJS interop shapes used by Baileys releases.
+const Baileys = BaileysModule.makeWASocket
+  ? BaileysModule
+  : (BaileysModule.default || BaileysModule);
+const makeWASocket = typeof Baileys === "function"
+  ? Baileys
+  : (Baileys.makeWASocket || Baileys.default);
+const DisconnectReason = Baileys.DisconnectReason || BaileysModule.DisconnectReason;
+const useMultiFileAuthState = Baileys.useMultiFileAuthState || BaileysModule.useMultiFileAuthState;
+const fetchLatestBaileysVersion = Baileys.fetchLatestBaileysVersion || BaileysModule.fetchLatestBaileysVersion;
 import { Boom } from "@hapi/boom";
 import { config } from "./config.js";
 import { handleMessage } from "./handler.js";
@@ -30,6 +37,9 @@ app.listen(config.port, "0.0.0.0", () => {
 });
 
 async function startBot() {
+  if (typeof makeWASocket !== "function") {
+    throw new Error("Baileys socket factory was not loaded. Reinstall dependencies and redeploy.");
+  }
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
   let version;
   try {
@@ -107,3 +117,4 @@ app.post("/api/pair", async (req, res) => {
 });
 
 startBot().catch(err => logger.error({ err }, "Initial bot start failed"));
+          
