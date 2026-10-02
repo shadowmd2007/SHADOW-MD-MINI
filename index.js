@@ -1,5 +1,7 @@
 import express from "express";
 import pino from "pino";
+import fs from "node:fs/promises";
+import path from "node:path";
 import * as BaileysModule from "@whiskeysockets/baileys";
 
 // Handle both ESM and CommonJS interop shapes used by Baileys releases.
@@ -22,6 +24,8 @@ let sock = null;
 let pairingInProgress = false;
 let lastPairingCode = null;
 let connectedAt = null;
+let startPromise = null;
+let resetting = false;
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -37,9 +41,12 @@ app.listen(config.port, "0.0.0.0", () => {
 });
 
 async function startBot() {
+  if (startPromise) return startPromise;
+  startPromise = (async () => {
   if (typeof makeWASocket !== "function") {
     throw new Error("Baileys socket factory was not loaded. Reinstall dependencies and redeploy.");
   }
+  await fs.mkdir(config.authDir, { recursive: true });
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
   let version;
   try {
@@ -74,6 +81,7 @@ async function startBot() {
     }
 
     if (connection === "close") {
+      if (resetting) return;
       const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
       logger.warn({ statusCode, loggedOut }, "WhatsApp connection closed");
@@ -92,24 +100,47 @@ async function startBot() {
       }
     }
   });
+  })();
+  try { return await startPromise; } finally { startPromise = null; }
 }
 
-export async function requestPairing(number) {
+async function resetSession() {
+  resetting = true;
+  pairingInProgress = false;
+  lastPairingCode = null;
+  const old = sock;
+  sock = null;
+  if (old) {
+    try { old.end(new Error("Session reset for pairing")); } catch {}
+  }
+  await new Promise(r => setTimeout(r, 500));
+  await fs.rm(config.authDir, { recursive: true, force: true });
+  await fs.mkdir(config.authDir, { recursive: true });
+  resetting = false;
+}
+
+export async function requestPairing(number, forceReset = false) {
   const clean = String(number || "").replace(/\D/g, "");
   if (!/^\d{8,15}$/.test(clean)) throw new Error("Enter a valid international number without +, spaces or dashes.");
 
-  if (!sock) await startBot();
-  if (sock.user) return { connected: true, code: null };
+  if (sock?.user && !forceReset) {
+    return { connected: true, code: null, needsReset: true };
+  }
 
+  if (forceReset) await resetSession();
+  if (!sock) await startBot();
+
+  // Give the new socket a moment to initialize before asking for the code.
+  if (sock.user && !forceReset) return { connected: true, code: null, needsReset: true };
   pairingInProgress = true;
   const code = await sock.requestPairingCode(clean);
   lastPairingCode = code;
-  return { connected: false, code };
+  return { connected: false, code, needsReset: false };
 }
 
 app.post("/api/pair", async (req, res) => {
   try {
-    const result = await requestPairing(req.body?.number);
+    const result = await requestPairing(req.body?.number, Boolean(req.body?.reset));
     res.json({ ok: true, ...result });
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message || "Pairing failed" });
@@ -117,4 +148,4 @@ app.post("/api/pair", async (req, res) => {
 });
 
 startBot().catch(err => logger.error({ err }, "Initial bot start failed"));
-          
+
