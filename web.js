@@ -29,6 +29,16 @@ document.getElementById("pair").onclick=async()=>{
  result.textContent="Generating pairing code...";
  try{const r=await fetch("/api/pair",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({number:n})});const d=await r.json();
  if(!d.ok) throw new Error(d.error);
+ if(d.needsReset){
+   const ok=confirm("A previous WhatsApp session is already stored on this deployment. Reset that session and generate a new pairing code?");
+   if(!ok){ result.textContent="Existing session kept. No pairing code was generated."; return; }
+   result.textContent="Resetting old session...";
+   const rr=await fetch("/api/pair",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({number:n,reset:true})});
+   const rd=await rr.json();
+   if(!rd.ok) throw new Error(rd.error);
+   if(!rd.code) throw new Error("Pairing code was not returned. Check Railway logs.");
+   d=rd;
+ }
  result.innerHTML=d.code?'<b>PAIRING CODE</b><strong>'+d.code+'</strong><span>Open WhatsApp → Linked devices → Link a device → Link with phone number instead.</span>':"Already connected.";
  }catch(e){result.textContent="❌ "+e.message}
 };
