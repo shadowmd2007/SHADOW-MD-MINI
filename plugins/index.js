@@ -94,3 +94,4 @@ for (const [cat, arr] of categories) {
 }
 
 export { commands, categories };
+            
