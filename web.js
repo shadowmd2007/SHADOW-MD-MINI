@@ -39,7 +39,7 @@ document.getElementById("pair").onclick=async()=>{
    if(!rd.code) throw new Error("Pairing code was not returned. Check Railway logs.");
    d=rd;
  }
- result.innerHTML=d.code?'<b>PAIRING CODE</b><strong>'+d.code+'</strong><span>Open WhatsApp → Linked devices → Link a device → Link with phone number instead.</span>':"Already connected.";
+ result.innerHTML=d.code?'<b>PAIRING CODE</b><strong>'+d.code+'</strong><span>Open WhatsApp → Linked devices → Link a device → Link with phone number instead. If WhatsApp shows no notification, open Linked devices manually.</span>':"Already connected.";
  }catch(e){result.textContent="❌ "+e.message}
 };
 check();setInterval(check,5000);
@@ -56,3 +56,4 @@ check();setInterval(check,5000);
     res.json({ ok: true, connected: s.connected, user: s.user, pairingInProgress: s.pairingInProgress });
   });
 }
+
