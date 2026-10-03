@@ -14,6 +14,8 @@ const makeWASocket = typeof Baileys === "function"
 const DisconnectReason = Baileys.DisconnectReason || BaileysModule.DisconnectReason;
 const useMultiFileAuthState = Baileys.useMultiFileAuthState || BaileysModule.useMultiFileAuthState;
 const fetchLatestBaileysVersion = Baileys.fetchLatestBaileysVersion || BaileysModule.fetchLatestBaileysVersion;
+const fetchLatestWaWebVersion = Baileys.fetchLatestWaWebVersion || BaileysModule.fetchLatestWaWebVersion;
+const Browsers = Baileys.Browsers || BaileysModule.Browsers;
 import { Boom } from "@hapi/boom";
 import { config } from "./config.js";
 import { handleMessage } from "./handler.js";
@@ -50,9 +52,21 @@ async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
   let version;
   try {
-    ({ version } = await fetchLatestBaileysVersion());
-  } catch {
-    version = undefined;
+    // Prefer the actual current WhatsApp Web version. The older helper can
+    // return a stale version that allows a code to be generated but causes
+    // WhatsApp to reject the device-link operation.
+    if (typeof fetchLatestWaWebVersion === "function") {
+      ({ version } = await fetchLatestWaWebVersion({}));
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not fetch current WhatsApp Web version; trying Baileys version helper");
+  }
+  if (!version) {
+    try {
+      ({ version } = await fetchLatestBaileysVersion());
+    } catch {
+      version = undefined;
+    }
   }
 
   sock = makeWASocket({
@@ -60,7 +74,11 @@ async function startBot() {
     auth: state,
     logger,
     printQRInTerminal: false,
-    browser: ["SHADOW MD", "Chrome", "1.0.0"],
+    // Use a canonical browser tuple for phone-number pairing. Custom labels
+    // can produce pairing codes that WhatsApp rejects as dead/invalid.
+    browser: typeof Browsers?.macOS === "function" ? Browsers.macOS("Chrome") : ["Mac OS", "Chrome", "1.0.0"],
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000,
     markOnlineOnConnect: false,
     syncFullHistory: false
   });
@@ -130,8 +148,11 @@ export async function requestPairing(number, forceReset = false) {
   if (forceReset) await resetSession();
   if (!sock) await startBot();
 
-  // Give the new socket a moment to initialize before asking for the code.
+  // Let the initial WebSocket handshake reach the pairing-ready state before
+  // requesting the code. Requesting immediately can race companion_hello.
   if (sock.user && !forceReset) return { connected: true, code: null, needsReset: true };
+  await new Promise(resolve => setTimeout(resolve, 1800));
+  if (!sock || resetting) throw new Error("Pairing socket was reset. Please generate a new code.");
   pairingInProgress = true;
   const code = await sock.requestPairingCode(clean);
   lastPairingCode = code;
@@ -148,4 +169,4 @@ app.post("/api/pair", async (req, res) => {
 });
 
 startBot().catch(err => logger.error({ err }, "Initial bot start failed"));
-
+                  
