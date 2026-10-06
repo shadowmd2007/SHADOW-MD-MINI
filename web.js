@@ -1,4 +1,4 @@
-import { config } from "./config.js";
+ import { config } from "./config.js";
 
 export function registerWeb(app, getState) {
   app.get("/", (_req, res) => {
