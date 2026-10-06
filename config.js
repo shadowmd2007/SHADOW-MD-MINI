@@ -4,7 +4,7 @@ export const config = {
   ownerNumber: "923003719761",
   githubUsername: "SHADOW-MD-MINI",
   githubRepository: "https://github.com/shadowmd2007/SHADOW-MD-MINI.git",
-  channelName: "❤️*دل  کی. دنیا*❤️",
+  channelName: "❤️*دل  کی دنیا*❤️",
   channelJid: "120363412495477805@newsletter",
   channelLink: "https://whatsapp.com/channel/0029VbCiT0g8vd1P3dJZqm2J",
   groupName: "RANA FURQAN",
