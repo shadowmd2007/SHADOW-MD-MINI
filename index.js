@@ -19,6 +19,7 @@ const Browsers = Baileys.Browsers || BaileysModule.Browsers;
 import { Boom } from "@hapi/boom";
 import { config } from "./config.js";
 import { handleMessage } from "./handler.js";
+import { loadCommands } from "./plugins/index.js";
 import { registerWeb } from "./web.js";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
@@ -45,6 +46,7 @@ app.listen(config.port, "0.0.0.0", () => {
 async function startBot() {
   if (startPromise) return startPromise;
   startPromise = (async () => {
+  await loadCommands();
   if (typeof makeWASocket !== "function") {
     throw new Error("Baileys socket factory was not loaded. Reinstall dependencies and redeploy.");
   }
@@ -169,4 +171,5 @@ app.post("/api/pair", async (req, res) => {
 });
 
 startBot().catch(err => logger.error({ err }, "Initial bot start failed"));
+
                   
