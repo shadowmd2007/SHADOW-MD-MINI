@@ -1,0 +1,3 @@
+import { reply } from "../lib/command-utils.js";
+const M={A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',Y:'-.--',Z:'--..',0:'-----',1:'.----',2:'..---',3:'...--',4:'....-',5:'.....',6:'-....',7:'--...',8:'---..',9:'----.'};
+export const command = { name:"morse", category:"TOOLS", description:"Encode text as Morse code.", run: async ({sock,remote,msg,args}) => reply(sock,remote,msg,args.length?args.join(" ").toUpperCase().split("").map(c=>c===" "?"/":M[c]||c).join(" "):"Usage: .morse hello") };

@@ -1,0 +1,2 @@
+import { reply } from "../lib/command-utils.js";
+export const command = { name:"choose", category:"FUN", description:"Choose one option.", run: async ({sock,remote,msg,args}) => { const raw=args.join(" "); const options=raw.split(/\s*,\s*|\s+or\s+/i).map(x=>x.trim()).filter(Boolean); return reply(sock,remote,msg,options.length>=2?`🎯 I choose: *${options[Math.floor(Math.random()*options.length)]}*`:"Usage: .choose pizza, burger, biryani"); } };

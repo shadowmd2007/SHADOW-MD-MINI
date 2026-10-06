@@ -1,0 +1,2 @@
+import { requireGroupAdmin } from "../lib/command-utils.js";
+export const command = { name:"hidetag", category:"GROUP", description:"Mention all members without listing names.", group:true, run: async (ctx) => { await requireGroupAdmin(ctx); const m=await ctx.sock.groupMetadata(ctx.remote); const text=ctx.args.join(" ")||"📢 Attention everyone."; return ctx.sock.sendMessage(ctx.remote,{text,mentions:m.participants.map(p=>p.id)},{quoted:ctx.msg}); } };

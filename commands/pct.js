@@ -1,0 +1,2 @@
+import { reply } from "../lib/command-utils.js";
+export const command = { name:"pct", category:"MATH", description:"Calculate a percentage.", run: async ({sock,remote,msg,args}) => { const a=Number(args[0]),b=Number(args[1]); if(!Number.isFinite(a)||!Number.isFinite(b)||b===0) return reply(sock,remote,msg,"Usage: .pct 25 200"); return reply(sock,remote,msg,`📈 ${a} is ${(a/b*100).toFixed(2)}% of ${b}`); } };

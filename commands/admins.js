@@ -1,0 +1,2 @@
+import { reply } from "../lib/command-utils.js";
+export const command = { name:"admins", category:"GROUP", description:"List group admins.", group:true, run: async ({sock,remote,msg}) => { const m=await sock.groupMetadata(remote); const a=m.participants.filter(p=>p.admin).map(p=>`• @${p.id.split("@")[0]}`); return sock.sendMessage(remote,{text:`👑 *ADMINS*\n${a.join("\n")||"None"}`,mentions:m.participants.filter(p=>p.admin).map(p=>p.id)},{quoted:msg}); } };

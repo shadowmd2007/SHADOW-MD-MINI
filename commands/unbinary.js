@@ -1,0 +1,2 @@
+import { reply } from "../lib/command-utils.js";
+export const command = { name:"unbinary", category:"TOOLS", description:"Convert binary to text.", run: async ({sock,remote,msg,args}) => { const s=args.join(" "); if(!/^[01\s]+$/.test(s)||!s.trim()) return reply(sock,remote,msg,"Usage: .unbinary 01001000 01101001"); try{return reply(sock,remote,msg,s.trim().split(/\s+/).map(x=>String.fromCharCode(parseInt(x,2))).join(""))}catch{return reply(sock,remote,msg,"❌ Invalid binary.")} } };

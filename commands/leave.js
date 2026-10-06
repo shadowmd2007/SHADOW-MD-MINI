@@ -1,0 +1,2 @@
+import { config } from "../config.js"; import { requireGroupAdmin, requireBotAdmin, reply } from "../lib/command-utils.js";
+export const command = { name:"leave", category:"OWNER", description:"Make the bot leave the current group.", owner:true, group:true, run: async (ctx) => { await requireGroupAdmin(ctx); await requireBotAdmin(ctx); await reply(ctx.sock,ctx.remote,ctx.msg,`👋 ${config.botName} leaving this group.`); return ctx.sock.groupLeave(ctx.remote); } };

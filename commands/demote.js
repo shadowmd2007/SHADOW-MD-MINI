@@ -1,0 +1,2 @@
+import { requireGroupAdmin, requireBotAdmin, getTargetJids, reply } from "../lib/command-utils.js";
+export const command = { name:"demote", category:"GROUP", description:"Demote mentioned admins.", group:true, run: async (ctx) => { await requireGroupAdmin(ctx); await requireBotAdmin(ctx); const ids=getTargetJids(ctx.msg,ctx.args); if(!ids.length) return reply(ctx.sock,ctx.remote,ctx.msg,"Usage: .demote @user"); await ctx.sock.groupParticipantsUpdate(ctx.remote,ids,"demote"); return reply(ctx.sock,ctx.remote,ctx.msg,"✅ Demotion requested."); } };

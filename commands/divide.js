@@ -1,0 +1,2 @@
+import { reply } from "../lib/command-utils.js";
+export const command = { name:"divide", category:"MATH", description:"Divide numbers.", run: async ({sock,remote,msg,args}) => { const n=args.map(Number); if(n.length<2||n.some(x=>!Number.isFinite(x))||n.slice(1).some(x=>x===0)) return reply(sock,remote,msg,"Usage: .divide 20 5 (no division by zero)"); return reply(sock,remote,msg,`➗ ${n.slice(1).reduce((a,b)=>a/b,n[0])}`); } };

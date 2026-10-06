@@ -1,0 +1,2 @@
+import { config } from "../config.js"; import { reply } from "../lib/command-utils.js";
+export const command = { name:"setprefix", category:"OWNER", description:"Change the runtime command prefix.", owner:true, run: async ({sock,remote,msg,args}) => { const p=args[0]; if(!p||p.length>3||/\s/.test(p)) return reply(sock,remote,msg,"Usage: .setprefix !"); config.prefix=p; return reply(sock,remote,msg,`✅ Prefix changed to *${p}* for this running process.`); } };

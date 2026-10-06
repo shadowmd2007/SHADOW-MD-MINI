@@ -1,0 +1,2 @@
+import { reply } from "../lib/command-utils.js";
+export const command = { name:"ginfo", category:"GROUP", description:"Show group information.", group:true, run: async ({sock,remote,msg}) => { const m=await sock.groupMetadata(remote); const admins=m.participants.filter(p=>p.admin); return reply(sock,remote,msg,`👥 *GROUP INFO*\nName: ${m.subject}\nMembers: ${m.participants.length}\nAdmins: ${admins.length}\nJID: ${remote}`); } };

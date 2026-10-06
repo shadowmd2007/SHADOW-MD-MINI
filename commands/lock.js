@@ -1,0 +1,2 @@
+import { requireGroupAdmin, requireBotAdmin, reply } from "../lib/command-utils.js";
+export const command = { name:"lock", category:"GROUP", description:"Lock group settings to admins.", group:true, run: async (ctx) => { await requireGroupAdmin(ctx); await requireBotAdmin(ctx); await ctx.sock.groupSettingUpdate(ctx.remote,"locked"); return reply(ctx.sock,ctx.remote,ctx.msg,"🔒 Group settings locked."); } };

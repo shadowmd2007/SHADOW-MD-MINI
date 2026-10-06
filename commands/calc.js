@@ -1,0 +1,2 @@
+import { reply, parseSimpleMath } from "../lib/command-utils.js";
+export const command = { name:"calc", aliases:["math"], category:"MATH", description:"Calculate a safe arithmetic expression.", run: async ({sock,remote,msg,args}) => { try { const value=parseSimpleMath(args.join(" ")); return reply(sock,remote,msg,`🧮 *Result:* ${value}`); } catch(e){ return reply(sock,remote,msg,`❌ ${e.message}`); } } };

@@ -1,0 +1,2 @@
+import { reply } from "../lib/command-utils.js";
+export const command = { name:"ship", category:"FUN", description:"Create a playful compatibility score.", run: async ({sock,remote,msg,args}) => { if(args.length<2) return reply(sock,remote,msg,"Usage: .ship @user1 @user2"); const s=args.join(" "); let h=0; for(const c of s) h=(h*31+c.charCodeAt(0))%101; return reply(sock,remote,msg,`💞 *Compatibility:* ${h}%`); } };

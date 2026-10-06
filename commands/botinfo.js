@@ -1,0 +1,2 @@
+import { config } from "../config.js"; import { reply } from "../lib/command-utils.js";
+export const command = { name:"botinfo", category:"MAIN", description:"Show bot configuration summary.", run: async ({sock,remote,msg}) => reply(sock,remote,msg,`🤖 *${config.botName}*\nVersion: ${config.version}\nOwner: ${config.ownerName}\nPrefix: ${config.prefix}\nMode: ${config.mode}\nGitHub: ${config.githubRepository}`) };

@@ -1,0 +1,2 @@
+import { reply, requireGroupAdmin } from "../lib/command-utils.js";
+export const command = { name:"tagall", category:"GROUP", description:"Mention all group members.", group:true, run: async (ctx) => { await requireGroupAdmin(ctx); const m=await ctx.sock.groupMetadata(ctx.remote); const mentions=m.participants.map(p=>p.id); const text=`📢 *TAG ALL*\n\n${mentions.map(j=>`@${j.split("@")[0]}`).join(" ")}`; return ctx.sock.sendMessage(ctx.remote,{text,mentions},{quoted:ctx.msg}); } };

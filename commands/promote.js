@@ -1,0 +1,2 @@
+import { requireGroupAdmin, requireBotAdmin, getTargetJids, reply } from "../lib/command-utils.js";
+export const command = { name:"promote", category:"GROUP", description:"Promote mentioned members.", group:true, run: async (ctx) => { await requireGroupAdmin(ctx); await requireBotAdmin(ctx); const ids=getTargetJids(ctx.msg,ctx.args); if(!ids.length) return reply(ctx.sock,ctx.remote,ctx.msg,"Usage: .promote @user"); await ctx.sock.groupParticipantsUpdate(ctx.remote,ids,"promote"); return reply(ctx.sock,ctx.remote,ctx.msg,"✅ Promotion requested."); } };

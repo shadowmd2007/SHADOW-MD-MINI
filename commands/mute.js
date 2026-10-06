@@ -1,0 +1,2 @@
+import { requireGroupAdmin, requireBotAdmin, reply } from "../lib/command-utils.js";
+export const command = { name:"mute", category:"GROUP", description:"Close group messaging to non-admins.", group:true, run: async (ctx) => { await requireGroupAdmin(ctx); await requireBotAdmin(ctx); await ctx.sock.groupSettingUpdate(ctx.remote,"announcement"); return reply(ctx.sock,ctx.remote,ctx.msg,"🔒 Group muted: only admins can send messages."); } };

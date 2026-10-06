@@ -1,0 +1,2 @@
+import { config } from "../config.js"; import { reply, formatDuration } from "../lib/command-utils.js";
+export const command = { name:"status", category:"MAIN", description:"Show detailed bot status.", run: async ({sock,remote,msg}) => reply(sock,remote,msg,`📊 *BOT STATUS*\n\n🤖 ${config.botName}\n🟢 Online\n⏱️ ${formatDuration(process.uptime())}\n📦 v${config.version}\n🔑 Prefix: ${config.prefix}`) };

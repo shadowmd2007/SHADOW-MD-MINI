@@ -1,0 +1,2 @@
+import { requireGroupAdmin, requireBotAdmin, reply } from "../lib/command-utils.js";
+export const command = { name:"unmute", category:"GROUP", description:"Allow all members to message.", group:true, run: async (ctx) => { await requireGroupAdmin(ctx); await requireBotAdmin(ctx); await ctx.sock.groupSettingUpdate(ctx.remote,"not_announcement"); return reply(ctx.sock,ctx.remote,ctx.msg,"🔓 Group unmuted: members can send messages."); } };

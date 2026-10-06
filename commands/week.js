@@ -1,0 +1,2 @@
+import { reply } from "../lib/command-utils.js";
+export const command = { name:"week", category:"UTILITY", description:"Show ISO week number.", run: async ({sock,remote,msg}) => { const d=new Date(); const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); const y=new Date(Date.UTC(t.getUTCFullYear(),0,1)); const w=Math.ceil((((t-y)/86400000)+1)/7); return reply(sock,remote,msg,`🗓️ ISO week: ${w}`); } };
