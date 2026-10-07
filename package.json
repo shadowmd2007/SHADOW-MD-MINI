@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "SHADOW MD WhatsApp Mini Bot with web pairing",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
