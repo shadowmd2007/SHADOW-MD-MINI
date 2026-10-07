@@ -27,7 +27,7 @@ async function check(){try{const r=await fetch("/api/status"),d=await r.json();s
 document.getElementById("pair").onclick=async()=>{
  const n=document.getElementById("number").value.trim();
  result.textContent="Generating pairing code...";
- try{const r=await fetch("/api/pair",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({number:n})});const d=await r.json();
+ try{const r=await fetch("/api/pair",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({number:n})});let d=await r.json();
  if(!d.ok) throw new Error(d.error);
  if(d.needsReset){
    const ok=confirm("A previous WhatsApp session is already stored on this deployment. Reset that session and generate a new pairing code?");
