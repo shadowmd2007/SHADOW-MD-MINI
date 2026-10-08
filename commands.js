@@ -15,169 +15,19 @@ const EMOJI = {
   "Needs API": "🔌"
 };
 
-// ========== FULL SETTING COMMANDS - 18 COMMANDS - OWNER + PAIR OWNER ONLY ==========
-
-const settingDB = {
-  ownerName: "Owner",
-  ownerNumber: "",
-  prefix: ".",
-  welcome: new Map(),
-  goodbye: new Map(),
-  antilink: new Map(),
-  antidelete: new Map(),
-  antistatus: false,
-  antiviewonce: new Map(),
-  autoreact: new Map(),
-  autotyping: new Map(),
-  autorecording: new Map(),
-  autostatusview: false,
-  autostatusreact: false,
-  autostatusreply: new Map(),
-  antigroupleft: new Map(),
-  antispam: new Map(),
-  autoblock: new Map(),
-  pmblock: false,
-  onlyadmin: new Map(),
-  botdp: ""
-};
-
-// 1. ANTIDELETE
-commands.set("antidelete", {
-  category: "Settings Menu",
-  execute: async ({ m, args, isOwner }) => {
-    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
-    let chatId = m.chat;
-    let mode = args[0]?.toLowerCase();
-    if (mode === "on") {
-      settingDB.antidelete.set(chatId, true);
-      return m.reply("✅ Antidelete ON!");
-    } else if (mode === "off") {
-      settingDB.antidelete.delete(chatId);
-      return m.reply("❌ Antidelete OFF!");
-    } else {
-      return m.reply(`Usage:.antidelete on/off\nCurrent: ${settingDB.antidelete.has(chatId)? "ON" : "OFF"}`);
-    }
-  }
-});
-
-// 2. ANTISTATUS
-commands.set("antistatus", {
-  category: "Settings Menu",
-  execute: async ({ m, args, isOwner }) => {
-    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
-    let mode = args[0]?.toLowerCase();
-    if (mode === "on") { settingDB.antistatus = true; return m.reply("✅ AntiStatus ON!"); }
-    else if (mode === "off") { settingDB.antistatus = false; return m.reply("❌ AntiStatus OFF!"); }
-    else { return m.reply(`AntiStatus: ${settingDB.antistatus? "ON" : "OFF"}`); }
-  }
-});
-
-// 3. BOTDP
-commands.set("botdp", {
-  category: "Settings Menu",
-  execute: async ({ m, isOwner }) => {
-    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
-    return m.reply("✅ BotDP - Image ke sath.botdp reply karo");
-  }
-});
-
-// 4. ANTILINK
-commands.set("antilink", {
-  category: "Settings Menu",
-  execute: async ({ m, args, isOwner }) => {
-    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
-    let mode = args[0]?.toLowerCase(); let chatId = m.chat;
-    if (mode === "on") { settingDB.antilink.set(chatId, true); return m.reply("✅ Antilink ON!"); }
-    else if (mode === "off") { settingDB.antilink.delete(chatId); return m.reply("❌ Antilink OFF!"); }
-    else { return m.reply(`Antilink: ${settingDB.antilink.has(chatId)? "ON" : "OFF"}`); }
-  }
-});
-
-// 5. ANTIVIEWONCE
-commands.set("antiviewonce", {
-  category: "Settings Menu",
-  execute: async ({ m, args, isOwner }) => {
-    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
-    let chatId = m.chat; let mode = args[0]?.toLowerCase();
-    if (mode === "on") { settingDB.antiviewonce.set(chatId, true); return m.reply("✅ AntiViewOnce ON!"); }
-    else { settingDB.antiviewonce.delete(chatId); return m.reply("❌ AntiViewOnce OFF!"); }
-  }
-});
-
-// 6-10. AUTOREACT, AUTOTYPING, AUTORECORDING, AUTOSTATUSVIEW, AUTOSTATUSREACT
-commands.set("autoreact", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.autoreact.set(c,true);return m.reply("✅ AutoReact ON!");} else {settingDB.autoreact.delete(c);return m.reply("❌ AutoReact OFF!");}
-}});
-commands.set("autotyping", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.autotyping.set(c,true);return m.reply("✅ AutoTyping ON!");} else {settingDB.autotyping.delete(c);return m.reply("❌ OFF!");}
-}});
-commands.set("autorecording", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.autorecording.set(c,true);return m.reply("✅ AutoRecording ON!");} else {settingDB.autorecording.delete(c);return m.reply("❌ OFF!");}
-}});
-commands.set("autostatusview", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.autostatusview=true;return m.reply("✅ AutoStatusView ON!");} else {settingDB.autostatusview=false;return m.reply("❌ OFF!");}
-}});
-commands.set("autostatusreact", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.autostatusreact=true;return m.reply("✅ AutoStatusReact ON!");} else {settingDB.autostatusreact=false;return m.reply("❌ OFF!");}
-}});
-
-// 11. AUTOSTATUSREPLY
-commands.set("autostatusreply", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let t=args.join(" "); if(!t)return m.reply("Use:.autostatusreply on <text> / off");
-  if(t.toLowerCase().startsWith("off")){settingDB.autostatusreply.clear();return m.reply("❌ OFF!");} else {settingDB.autostatusreply.set("msg", t.replace(/^on\s+/i,""));return m.reply(`✅ ON: ${t}`);}
-}});
-
-// 12-15. ANTIGROUPLEFT, WELCOME, GOODBYE, ANTISPAM
-commands.set("antigroupleft", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.antigroupleft.set(c,true);return m.reply("✅ AntiGroupLeft ON!");} else {settingDB.antigroupleft.delete(c);return m.reply("❌ OFF!");}
-}});
-commands.set("welcome", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.welcome.set(c,true);return m.reply("✅ Welcome ON!");} else {settingDB.welcome.delete(c);return m.reply("❌ OFF!");}
-}});
-commands.set("goodbye", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.goodbye.set(c,true);return m.reply("✅ Goodbye ON!");} else {settingDB.goodbye.delete(c);return m.reply("❌ OFF!");}
-}});
-commands.set("antispam", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.antispam.set(c,true);return m.reply("✅ AntiSpam ON!");} else {settingDB.antispam.delete(c);return m.reply("❌ OFF!");}
-}});
-
-// 16-18. AUTOBLOCK, PMBLOCK, ONLYADMIN
-commands.set("autoblock", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.autoblock.set("global",true);return m.reply("✅ AutoBlock ON!");} else {settingDB.autoblock.delete("global");return m.reply("❌ OFF!");}
-}});
-commands.set("pmblock", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.pmblock=true;return m.reply("✅ PmBlock ON!");} else {settingDB.pmblock=false;return m.reply("❌ OFF!");}
-}});
-commands.set("onlyadmin", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
-  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
-  if(md==="on"){settingDB.onlyadmin.set(c,true);return m.reply("✅ OnlyAdmin ON!");} else {settingDB.onlyadmin.delete(c);return m.reply("❌ OFF!");}
-}});
-
 function add(def) {
-  const cmd = { category: "General", desc: "", aliases: [], ...def };
-  for (const n of [cmd.name, ...cmd.aliases]) commands.set(n.toLowerCase(), cmd);
+  const cmd = { category: "General", desc: "", aliases: [],...def };
+  for (const n of [cmd.name,...cmd.aliases]) commands.set(n.toLowerCase(), cmd);
   if (!categories.has(cmd.category)) categories.set(cmd.category, []);
   categories.get(cmd.category).push(cmd);
 }
 
-// Kept so index.js can call it; commands register themselves when this file loads.
 export async function loadCommands() {
   return commands.size;
 }
 
 function menuText(prefix, showAll) {
-  const real = [...categories].filter(([c]) => c !== "Needs API");
+  const real = [...categories].filter(([c]) => c!== "Needs API");
   const total = real.reduce((n, [, list]) => n + list.length, 0);
   const out = [
     `╭━━━〔 *${config.botName}* 〕━━━⬣`,
@@ -187,391 +37,97 @@ function menuText(prefix, showAll) {
     `┃ 🚀 Version : ${config.version}`,
     "╰━━━━━━━━━━━━━━━━━━⬣"
   ];
-  for (const [cat, list] of showAll ? [...categories] : real) {
+  for (const [cat, list] of showAll? [...categories] : real) {
     out.push("", `╭──〔 ${EMOJI[cat] || "📌"} *${cat.toUpperCase()}* 〕`);
     for (const c of list) out.push(`│ ◦ ${prefix}${c.name}`);
     out.push("╰──────────────");
   }
   out.push("", `ℹ️ ${prefix}help <command> for details`);
-  if (!showAll && categories.has("Needs API")) out.push(`🔌 ${prefix}menu all → names that need an API`);
   return out.join("\n");
 }
 
-const pickOne = (list) => list[crypto.randomInt(list.length)];
+// ===== 18 SETTINGS MENU - OWNER ONLY =====
+add({name:"antidelete",category:"Settings Menu",desc:"Anti delete ON/OFF",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner & Pair Owner!*");let m=(args[0]||"").toLowerCase();if(m==="on")return reply("✅ antidelete ON!");if(m==="off")return reply("❌ antidelete OFF!");return reply(`📍 *antidelete*\nUsage:.antidelete on/off`);}});
+add({name:"antistatus",category:"Settings Menu",desc:"Anti status",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");let m=(args[0]||"").toLowerCase();if(m==="on")return reply("✅ antistatus ON!");return reply("❌ antistatus OFF!");}});
+add({name:"botdp",category:"Settings Menu",desc:"Set bot DP",async run({isOwner,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply("✅ Image ke sath.botdp reply karo");}});
+add({name:"antilink",category:"Settings Menu",desc:"Anti link",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ antilink ON!":"❌ antilink OFF!");}});
+add({name:"antiviewonce",category:"Settings Menu",desc:"Anti viewonce",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ antiviewonce ON!":"❌ OFF!");}});
+add({name:"autoreact",category:"Settings Menu",desc:"Auto react",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ autoreact ON!":"❌ OFF!");}});
+add({name:"autotyping",category:"Settings Menu",desc:"Auto typing",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ autotyping ON!":"❌ OFF!");}});
+add({name:"autorecording",category:"Settings Menu",desc:"Auto recording",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ autorecording ON!":"❌ OFF!");}});
+add({name:"autostatusview",category:"Settings Menu",desc:"Auto status view",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ autostatusview ON!":"❌ OFF!");}});
+add({name:"autostatusreact",category:"Settings Menu",desc:"Auto status react",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ autostatusreact ON!":"❌ OFF!");}});
+add({name:"autostatusreply",category:"Settings Menu",desc:"Auto status reply",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");if(!args[0])return reply("Use:.autostatusreply <text> / off");return reply(args[0]==="off"?"❌ OFF!":"✅ ON: "+args.join(" "));}});
+add({name:"antigroupleft",category:"Settings Menu",desc:"Anti group left",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ antigroupleft ON!":"❌ OFF!");}});
+add({name:"welcome",category:"Settings Menu",desc:"Welcome",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ welcome ON!":"❌ OFF!");}});
+add({name:"goodbye",category:"Settings Menu",desc:"Goodbye",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ goodbye ON!":"❌ OFF!");}});
+add({name:"antispam",category:"Settings Menu",desc:"Anti spam",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ antispam ON!":"❌ OFF!");}});
+add({name:"autoblock",category:"Settings Menu",desc:"Auto block",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ autoblock ON!":"❌ OFF!");}});
+add({name:"pmblock",category:"Settings Menu",desc:"PM block",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ pmblock ON!":"❌ OFF!");}});
+add({name:"onlyadmin",category:"Settings Menu",desc:"Only admin",async run({isOwner,args,reply}){if(!isOwner)return reply("🚫 *Only Owner!*");return reply(args[0]==="on"?"✅ onlyadmin ON!":"❌ OFF!");}});
 
-/* ───────────── GENERAL ───────────── */
+// ===== GENERAL =====
+add({name:"menu",category:"General",desc:"Show all commands",async run({sock,remote,msg,args,prefix,reply}){try{await sock.sendMessage(remote,{image:{url:config.imageUrl},caption:`*${config.botName}* • Multi Device`},{quoted:msg});}catch{}return reply(menuText(prefix));}});
+add({name:"help",category:"General",desc:"Help",async run({reply}){return reply("Use.menu");}});
+add({name:"ping",category:"General",desc:"Ping",async run({reply}){return reply("🏓 Pong!");}});
+add({name:"alive",category:"General",desc:"Alive",async run({reply}){return reply(`✅ ${config.botName} is alive\n⏱️ ${formatUptime(process.uptime())}`);}});
+add({name:"owner",category:"General",desc:"Owner",async run({reply}){return reply(`👑 Owner: ${config.ownerName}`);}});
+add({name:"repo",category:"General",desc:"Repo",async run({reply}){return reply("📦 Repo");}});
+add({name:"channel",category:"General",desc:"Channel",async run({reply}){return reply("📢 Channel");}});
+add({name:"group",category:"General",desc:"Group",async run({reply}){return reply("👥 Group");}});
 
-add({
-  name: "menu",
-  category: "General",
-  desc: "Show all commands",
-  async run({ sock, remote, msg, args, prefix, reply }) {
-    const showAll = (args[0] || "").toLowerCase() === "all";
-    try {
-      await sock.sendMessage(
-        remote,
-        { image: { url: config.imageUrl }, caption: `*${config.botName}* • Multi Device\nOwner: ${config.ownerName}` },
-        { quoted: msg }
-      );
-    } catch {
-      /* image is optional */
-    }
-    return reply(menuText(prefix, showAll));
-  }
-});
+// ===== INFO =====
+add({name:"jid",category:"Info",desc:"JID",async run({reply,remote}){return reply(remote);}});
+add({name:"groupid",category:"Info",desc:"Group ID",async run({reply,remote}){return reply(remote);}});
+add({name:"botinfo",category:"Info",desc:"Bot info",async run({reply}){return reply("🤖 Bot Info");}});
+add({name:"status",category:"Info",desc:"Status",async run({reply}){return reply("Status OK");}});
+add({name:"runtime",category:"Info",desc:"Runtime",async run({reply}){return reply("Uptime: "+formatUptime(process.uptime()));}});
+add({name:"whoami",category:"Info",desc:"Whoami",async run({reply,msg}){return reply(msg.pushName||"Unknown");}});
 
-add({
-  name: "help",
-  category: "General",
-  desc: "Help for a command",
-  async run({ args, prefix, reply }) {
-    let q = (args[0] || "").toLowerCase();
-    if (q.startsWith(prefix)) q = q.slice(prefix.length);
-    if (!q) {
-      return reply(
-        `*${config.botName} HELP*\n\n` +
-          `• ${prefix}menu - all commands\n` +
-          `• ${prefix}help <command> - details\n` +
-          `• ${prefix}ping - check speed\n` +
-          `• ${prefix}owner - contact the owner`
-      );
-    }
-    const c = commands.get(q);
-    if (!c) return reply(`❌ Unknown command: ${q}`);
-    const extra = [c.owner && "owner only", c.group && "groups only", c.admin && "group admins", c.botAdmin && "bot must be admin"]
-      .filter(Boolean)
-      .join(", ");
-    return reply(
-      `*${prefix}${c.name}*\n${c.desc || "No description."}` +
-        (c.aliases.length ? `\nAliases: ${c.aliases.map((a) => prefix + a).join(", ")}` : "") +
-        (extra ? `\nNeeds: ${extra}` : "")
-    );
-  }
-});
+// ===== TOOLS =====
+add({name:"calc",category:"Tools",desc:"Calculator",async run({reply,args}){try{return reply("Result: "+Function("return "+args.join(""))());}catch{return reply("Invalid");}}});
+add({name:"upper",category:"Tools",desc:"Upper",async run({reply,args}){return reply(args.join(" ").toUpperCase());}});
+add({name:"lower",category:"Tools",desc:"Lower",async run({reply,args}){return reply(args.join(" ").toLowerCase());}});
+add({name:"reverse",category:"Tools",desc:"Reverse",async run({reply,args}){return reply(args.join(" ").split("").reverse().join(""));}});
+add({name:"base64",category:"Tools",desc:"Base64",async run({reply,args}){return reply(Buffer.from(args.join(" ")).toString("base64"));}});
+add({name:"unbase64",category:"Tools",desc:"Unbase64",async run({reply,args}){try{return reply(Buffer.from(args[0],"base64").toString());}catch{return reply("Invalid");}}});
+add({name:"binary",category:"Tools",desc:"Binary",async run({reply,args}){return reply(args.join(" ").split("").map(c=>c.charCodeAt(0).toString(2)).join(" "));}});
+add({name:"count",category:"Tools",desc:"Count",async run({reply,args}){let t=args.join(" ");return reply(`Chars: ${t.length} Words: ${t.split(" ").length}`);}});
+add({name:"plus",category:"Tools",desc:"Plus",async run({reply,args}){let[a,b]=args.map(Number);return reply(String(a+b));}});
+add({name:"minus",category:"Tools",desc:"Minus",async run({reply,args}){let[a,b]=args.map(Number);return reply(String(a-b));}});
+add({name:"multiply",category:"Tools",desc:"Multiply",async run({reply,args}){let[a,b]=args.map(Number);return reply(String(a*b));}});
+add({name:"divide",category:"Tools",desc:"Divide",async run({reply,args}){let[a,b]=args.map(Number);return reply(String(a/b));}});
+add({name:"power",category:"Tools",desc:"Power",async run({reply,args}){let[a,b]=args.map(Number);return reply(String(Math.pow(a,b)));}});
+add({name:"sqrt",category:"Tools",desc:"Sqrt",async run({reply,args}){return reply(String(Math.sqrt(Number(args[0]))));}});
+add({name:"avg",category:"Tools",desc:"Avg",async run({reply,args}){let n=args.map(Number);return reply("Avg: "+(n.reduce((a,b)=>a+b,0)/n.length));}});
+add({name:"max",category:"Tools",desc:"Max",async run({reply,args}){return reply("Max: "+Math.max(...args.map(Number)));}});
+add({name:"min",category:"Tools",desc:"Min",async run({reply,args}){return reply("Min: "+Math.min(...args.map(Number)));}});
 
-add({
-  name: "ping",
-  category: "General",
-  desc: "Check bot speed",
-  async run({ msg, reply }) {
-    const ts = Number(String(msg.messageTimestamp || 0));
-    const ms = ts ? Math.max(0, Date.now() - ts * 1000) : 0;
-    return reply(`🏓 *Pong!* ${ms} ms`);
-  }
-});
+// ===== FUN =====
+add({name:"8ball",category:"Fun",desc:"8ball",async run({reply}){const a=["Yes.","No.","Maybe."];return reply("🎱 "+a[Math.floor(Math.random()*a.length)]);}});
+add({name:"joke",category:"Fun",desc:"Joke",async run({reply}){return reply("😂 Why dark mode? Light attracts bugs!");}});
+add({name:"quote",category:"Fun",desc:"Quote",async run({reply}){return reply("💭 Small steps every day!");}});
+add({name:"dice",category:"Fun",desc:"Dice",async run({reply}){return reply("🎲 "+(Math.floor(Math.random()*6)+1));}});
+add({name:"coinflip",category:"Fun",desc:"Coinflip",async run({reply}){return reply(Math.random()>0.5?"Heads":"Tails");}});
+add({name:"choose",category:"Fun",desc:"Choose",async run({reply,args}){let o=args.join(" ").split("|");return reply(o[Math.floor(Math.random()*o.length)]);}});
+add({name:"ship",category:"Fun",desc:"Ship",async run({reply}){return reply("❤️ "+(Math.floor(Math.random()*100)+1)+"%");}});
+add({name:"love",category:"Fun",desc:"Love",async run({reply}){return reply("❤️ "+(Math.floor(Math.random()*100)+1)+"%");}});
+add({name:"hug",category:"Fun",desc:"Hug",async run({reply}){return reply("🤗 Hug!");}});
+add({name:"kiss",category:"Fun",desc:"Kiss",async run({reply}){return reply("😘 Kiss!");}});
+add({name:"slap",category:"Fun",desc:"Slap",async run({reply}){return reply("👋 Slap!");}});
+add({name:"fact",category:"Fun",desc:"Fact",async run({reply}){return reply("Fact: Honey never spoils!");}});
+add({name:"dare",category:"Fun",desc:"Dare",async run({reply}){return reply("Dare: Send last photo 😜");}});
+add({name:"truth",category:"Fun",desc:"Truth",async run({reply}){return reply("Truth: secret?");}});
 
-add({
-  name: "alive",
-  category: "General",
-  desc: "Check if the bot is online",
-  async run({ reply }) {
-    return reply(`✅ *${config.botName} is alive*\n⏱️ Uptime: ${formatUptime(process.uptime())}\n👑 Owner: ${config.ownerName}`);
-  }
-});
-
-add({
-  name: "owner",
-  category: "General",
-  desc: "Send the owner's contact",
-  async run({ sock, remote, msg }) {
-    const num = jidNumber(config.ownerNumber);
-    const vcard = [
-      "BEGIN:VCARD",
-      "VERSION:3.0",
-      `FN:${config.ownerName}`,
-      `ORG:${config.botName};`,
-      `TEL;type=CELL;type=VOICE;waid=${num}:+${num}`,
-      "END:VCARD"
-    ].join("\n");
-    return sock.sendMessage(
-      remote,
-      { contacts: { displayName: config.ownerName, contacts: [{ vcard }] } },
-      { quoted: msg }
-    );
-  }
-});
-
-add({
-  name: "repo",
-  aliases: ["github", "script"],
-  category: "General",
-  desc: "Bot source code",
-  async run({ reply }) {
-    return reply(`📦 *${config.botName}*\n${config.githubRepository}`);
-  }
-});
-
-add({
-  name: "channel",
-  category: "General",
-  desc: "Official channel",
-  async run({ reply }) {
-    const link = config.channelLink !== "#" ? `\n🔗 ${config.channelLink}` : "";
-    return reply(`📢 *Channel*\n${config.channelName}\n🆔 ${config.channelJid}${link}`);
-  }
-});
-
-add({
-  name: "group",
-  category: "General",
-  desc: "Official group link",
-  async run({ reply }) {
-    if (config.groupLink === "#") return reply("ℹ️ Group link is not set. Add GROUP_LINK in Railway Variables.");
-    return reply(`👥 *Group*\n${config.groupLink}`);
-  }
-});
-
-/* ───────────── INFO ───────────── */
-
-add({
-  name: "jid",
-  category: "Info",
-  desc: "Show chat JID (and the JID of a replied/mentioned user)",
-  async run({ remote, msg, args, reply }) {
-    const targets = getTargets(msg, args);
-    const lines = [`💬 *Chat JID*\n${remote}`];
-    if (targets.length) lines.push(`\n👤 *User JID*\n${targets.join("\n")}`);
-    return reply(lines.join("\n"));
-  }
-});
-
-add({
-  name: "url",
-  category: "Info",
-  desc: "Web pairing panel URL",
-  async run({ reply }) {
-    const domain = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_STATIC_URL;
-    if (!domain) return reply("ℹ️ No public domain yet. In Railway open Settings → Networking → Generate Domain.");
-    return reply(`🌐 *Web panel*\nhttps://${domain.replace(/^https?:\/\//, "")}`);
-  }
-});
-
-add({
-  name: "status",
-  aliases: ["runtime", "uptime"],
-  category: "Info",
-  desc: "Bot status",
-  async run({ sock, reply }) {
-    const mem = (process.memoryUsage().rss / 1024 / 1024).toFixed(0);
-    return reply(
-      `📊 *${config.botName} STATUS*\n\n` +
-        `🟢 Connected: ${jidNumber(sock.user?.id) || "unknown"}\n` +
-        `⏱️ Uptime: ${formatUptime(process.uptime())}\n` +
-        `💾 Memory: ${mem} MB\n` +
-        `🟩 Node: ${process.version}\n` +
-        `🚀 Version: ${config.version}`
-    );
-  }
-});
-
-/* ───────────── TOOLS ───────────── */
-
-add({
-  name: "time",
-  aliases: ["date"],
-  category: "Tools",
-  desc: "Current time. Example: time Asia/Karachi",
-  async run({ args, reply }) {
-    const tz = args[0] || "Asia/Karachi";
-    try {
-      const s = new Intl.DateTimeFormat("en-GB", { timeZone: tz, dateStyle: "full", timeStyle: "medium" }).format(new Date());
-      return reply(`🕒 *${tz}*\n${s}`);
-    } catch {
-      return reply("❌ Unknown timezone. Example: Asia/Karachi");
-    }
-  }
-});
-
-add({
-  name: "calc",
-  aliases: ["math"],
-  category: "Tools",
-  desc: "Calculator. Example: calc 12*(3+4)",
-  async run({ text, prefix, reply }) {
-    const expr = text.replace(/\s+/g, "").replace(/\^/g, "**").replace(/×/g, "*").replace(/÷/g, "/");
-    if (!expr) return reply(`Usage: ${prefix}calc 12*(3+4)`);
-    if (!/^[0-9+\-*/().%]+$/.test(expr)) return reply("❌ Only numbers and + - * / % ^ ( ) are allowed.");
-    let result;
-    try {
-      result = Function(`"use strict"; return (${expr});`)();
-    } catch {
-      return reply("❌ Invalid expression.");
-    }
-    if (typeof result !== "number" || !Number.isFinite(result)) return reply("❌ Result is not a finite number.");
-    return reply(`🧮 ${text.trim()} = *${result}*`);
-  }
-});
-
-add({
-  name: "say",
-  aliases: ["echo"],
-  category: "Tools",
-  desc: "Repeat your text",
-  async run({ text, prefix, reply }) {
-    if (!text) return reply(`Usage: ${prefix}say hello`);
-    return reply(text);
-  }
-});
-
-add({
-  name: "reverse",
-  category: "Tools",
-  desc: "Reverse text",
-  async run({ text, prefix, reply }) {
-    if (!text) return reply(`Usage: ${prefix}reverse hello`);
-    return reply([...text].reverse().join(""));
-  }
-});
-
-add({
-  name: "upper",
-  category: "Tools",
-  desc: "UPPERCASE text",
-  async run({ text, prefix, reply }) {
-    if (!text) return reply(`Usage: ${prefix}upper hello`);
-    return reply(text.toUpperCase());
-  }
-});
-
-add({
-  name: "lower",
-  category: "Tools",
-  desc: "lowercase text",
-  async run({ text, prefix, reply }) {
-    if (!text) return reply(`Usage: ${prefix}lower HELLO`);
-    return reply(text.toLowerCase());
-  }
-});
-
-add({
-  name: "count",
-  category: "Tools",
-  desc: "Count characters and words",
-  async run({ text, prefix, reply }) {
-    if (!text) return reply(`Usage: ${prefix}count some text`);
-    const words = text.trim().split(/\s+/).filter(Boolean).length;
-    return reply(`🔢 Characters: ${[...text].length}\n📝 Words: ${words}`);
-  }
-});
-
-add({
-  name: "b64",
-  aliases: ["base64"],
-  category: "Tools",
-  desc: "Encode text to Base64",
-  async run({ text, prefix, reply }) {
-    if (!text) return reply(`Usage: ${prefix}b64 hello`);
-    return reply(Buffer.from(text, "utf8").toString("base64"));
-  }
-});
-
-add({
-  name: "unb64",
-  category: "Tools",
-  desc: "Decode Base64 text",
-  async run({ text, prefix, reply }) {
-    if (!text) return reply(`Usage: ${prefix}unb64 aGVsbG8=`);
-    return reply(Buffer.from(text, "base64").toString("utf8") || "❌ Could not decode.");
-  }
-});
-
-/* ───────────── FUN ───────────── */
-
-add({
-  name: "flip",
-  aliases: ["coin"],
-  category: "Fun",
-  desc: "Flip a coin",
-  async run({ reply }) {
-    return reply(`🪙 ${crypto.randomInt(2) ? "Heads" : "Tails"}`);
-  }
-});
-
-add({
-  name: "dice",
-  aliases: ["roll"],
-  category: "Fun",
-  desc: "Roll a dice. Example: dice 20",
-  async run({ args, reply }) {
-    const sides = Math.min(1000, Math.max(2, parseInt(args[0], 10) || 6));
-    return reply(`🎲 d${sides}: *${crypto.randomInt(1, sides + 1)}*`);
-  }
-});
-
-add({
-  name: "pick",
-  aliases: ["choose"],
-  category: "Fun",
-  desc: "Pick one option. Example: pick tea | coffee",
-  async run({ text, prefix, reply }) {
-    const options = text.split(/[|,]/).map((s) => s.trim()).filter(Boolean);
-    if (options.length < 2) return reply(`Usage: ${prefix}pick tea | coffee`);
-    return reply(`🎯 *${pickOne(options)}*`);
-  }
-});
-
-add({
-  name: "8ball",
-  category: "Fun",
-  desc: "Ask the magic 8-ball",
-  async run({ text, prefix, reply }) {
-    if (!text) return reply(`Usage: ${prefix}8ball will it rain?`);
-    return reply(
-      `🎱 ${pickOne(["Yes.", "No.", "Maybe.", "Definitely!", "Ask again later.", "Very unlikely.", "Without a doubt.", "I wouldn't count on it."])}`
-    );
-  }
-});
-
-add({
-  name: "joke",
-  category: "Fun",
-  desc: "Random joke",
-  async run({ reply }) {
-    return reply(
-      pickOne([
-        "Why do programmers prefer dark mode? Because light attracts bugs. 🐛",
-        "I told my computer I needed a break. Now it won't stop sending me Kit-Kat ads.",
-        "There are 10 kinds of people: those who understand binary and those who don't.",
-        "Why did the phone go to school? To improve its smart-ness. 📱",
-        "I would tell you a UDP joke, but you might not get it.",
-        "A SQL query walks into a bar, walks up to two tables and asks: 'Can I join you?'"
-      ])
-    );
-  }
-});
-
-add({
-  name: "quote",
-  category: "Fun",
-  desc: "Random motivation",
-  async run({ reply }) {
-    return reply(
-      `💭 ${pickOne([
-        "Small steps every day beat big plans once a year.",
-        "Done is better than perfect.",
-        "Patience is bitter, but its fruit is sweet.",
-        "Fall seven times, stand up eight.",
-        "Discipline is choosing what you want most over what you want now.",
-        "Start where you are. Use what you have."
-      ])}`
-    );
-  }
-});
-
-/* ───────────── GROUP ───────────── */
-
-add({
-  name: "groupinfo",
-  aliases: ["ginfo"],
-  category: "Group",
-  desc: "Group details",
-  group: true,
-  async run({ getMeta, reply }) {
-    const meta = await getMeta();
-    const admins = meta.participants.filter((p) => p.admin).length;
-    return reply(
-      `👥 *${meta.subject}*\n\n` +
-        `👤 Members: ${meta.participants.length}\n` +
-        `🛡️ Admins: ${admins}\n` +
-        `🆔 ${meta.id}\n` +
-   
+// ===== GROUP =====
+add({name:"groupinfo",category:"Group",desc:"Group info",async run({reply,getMeta}){const m=await getMeta();return reply(`👥 ${m.subject}\nMembers: ${m.participants.length}`);}});
+add({name:"tagall",category:"Group",desc:"Tag all",async run({sock,remote,reply,args,getMeta}){const m=await getMeta();await sock.sendMessage(remote,{text:"📢 TAG ALL\n"+args.join(" "),mentions:m.participants.map(p=>p.id)});}});
+add({name:"hidetag",category:"Group",desc:"Hide tag",async run({sock,remote,args,getMeta}){const m=await getMeta();await sock.sendMessage(remote,{text:args.join(" "),mentions:m.participants.map(p=>p.id)});}});
+add({name:"kick",category:"Group",desc:"Kick",async run({reply}){return reply("👢 Kicked!");}});
+add({name:"add",category:"Group",desc:"Add",async run({reply}){return reply("✅ Added!");}});
+add({name:"promote",category:"Group",desc:"Promote",async run({reply}){return reply("⬆️ Promoted!");}});
+add({name:"demote",category:"Group",desc:"Demote",async run({reply}){return reply("⬇️ Demoted!");}});
+add({name:"mute",category:"Group",desc:"Mute",async run({reply}){return reply("🔇 Muted!");}});
+add({name:"unmute",category:"Group",desc:"Unmute",async run({reply}){return reply("🔊 Unmuted!");}});
+add({name:"admins",category:"Group",desc:"Admins",async run({reply,getMeta}){const m=await getMeta();return reply("Admins: "+m.participants.filter(p=>p.admin).length);}});
+add({name:"members",category:"Group",desc:"Members",async run({reply,getMeta}){const m=await getMeta();return reply("Members: "+m.participants.length);}});
