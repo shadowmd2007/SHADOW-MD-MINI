@@ -14,301 +14,155 @@ const EMOJI = {
   "Settings Menu": "⚙️",
   "Needs API": "🔌"
 };
-// ========= FULL SETTING COMMANDS - 18 COMMANDS =========
 
-// CONFIG STORE
+// ========== FULL SETTING COMMANDS - 18 COMMANDS - OWNER + PAIR OWNER ONLY ==========
+
 const settingDB = {
   ownerName: "Owner",
   ownerNumber: "",
   prefix: ".",
   welcome: new Map(),
   goodbye: new Map(),
+  antilink: new Map(),
   antidelete: new Map(),
-  antistatus: new Map(),
-  statusview: new Map(),
-  statusreact: new Map(),
-  statuslike: new Map(),
+  antistatus: false,
+  antiviewonce: new Map(),
   autoreact: new Map(),
-  alwaysonline: new Map(),
   autotyping: new Map(),
   autorecording: new Map(),
-  anticall: new Map(),
-  autoread: new Map(),
+  autostatusview: false,
+  autostatusreact: false,
+  autostatusreply: new Map(),
+  antigroupleft: new Map(),
+  antispam: new Map(),
+  autoblock: new Map(),
+  pmblock: false,
+  onlyadmin: new Map(),
+  botdp: ""
 };
 
-let listeners = {
-  delete: false, status: false, view: false, react: false, like: false,
-  areact: false, online: false, typing: false, recording: false, read: false, call: false
-};
-
-// 1. ANTI-DELETE
-const delStore = new Map();
-add({
-  name: "antidelete", aliases: ["ad"], category: "Setting", desc: "Anti delete",
-  async run({ sock, remote, args, reply, prefix }) {
-    if (!listeners.delete) {
-      listeners.delete = true;
-      sock.ev.on('messages.upsert', async ({ messages }) => {
-        for (let m of messages) {
-          if (m.key.fromMe ||!m.message) continue;
-          if (!delStore.has(m.key.remoteJid)) delStore.set(m.key.remoteJid, new Map());
-          delStore.get(m.key.remoteJid).set(m.key.id, m);
-        }
-      });
-      sock.ev.on('messages.update', async (upds) => {
-        for (let { key, update } of upds) {
-          if ((update.messageStubType === 1 || update.messageStubType === 2) && settingDB.antidelete.get(key.remoteJid)) {
-            let s = delStore.get(key.remoteJid)?.get(key.id);
-            if (s) { await sock.sendMessage(key.remoteJid, { text: "*🚫 Deleted Message Recovered*" }); await sock.sendMessage(key.remoteJid, { forward: s }); }
-          }
-        }
-      });
+// 1. ANTIDELETE
+commands.set("antidelete", {
+  category: "Settings Menu",
+  execute: async ({ m, args, isOwner }) => {
+    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
+    let chatId = m.chat;
+    let mode = args[0]?.toLowerCase();
+    if (mode === "on") {
+      settingDB.antidelete.set(chatId, true);
+      return m.reply("✅ Antidelete ON!");
+    } else if (mode === "off") {
+      settingDB.antidelete.delete(chatId);
+      return m.reply("❌ Antidelete OFF!");
+    } else {
+      return m.reply(`Usage:.antidelete on/off\nCurrent: ${settingDB.antidelete.has(chatId)? "ON" : "OFF"}`);
     }
-    let o = (args[0]||"").toLowerCase();
-    if(o==="on"){ settingDB.antidelete.set(remote,true); return reply("✅ AntiDelete ON"); }
-    if(o==="off"){ settingDB.antidelete.set(remote,false); return reply("❌ AntiDelete OFF"); }
-    return reply(`*AntiDelete:* ${settingDB.antidelete.get(remote)?"ON ✅":"OFF ❌"}\n${prefix}antidelete on/off`);
   }
 });
 
-// 2. ANTI-STATUS
-const sStore = new Map();
-add({
-  name: "antistatus", category: "Setting", desc: "Anti status",
-  async run({ sock, remote, args, reply, prefix }) {
-    if (!listeners.status) {
-      listeners.status = true;
-      sock.ev.on('messages.upsert', async ({ messages }) => {
-        for (let m of messages) if(m.key.remoteJid==="status@broadcast"&&!m.key.fromMe) sStore.set(m.key.id, m);
-      });
-      sock.ev.on('messages.update', async (upds) => {
-        for (let { key, update } of upds) {
-          if(key.remoteJid==="status@broadcast"&&(update.messageStubType===1||update.messageStubType===2)){
-            for(let [jid,en] of settingDB.antistatus) if(en){ let s=sStore.get(key.id); if(s){ await sock.sendMessage(jid,{text:"*🚫 Anti-Status*"}); await sock.sendMessage(jid,{forward:s}); } }
-          }
-        }
-      });
-    }
-    let o=(args[0]||"").toLowerCase();
-    if(o==="on"){ settingDB.antistatus.set(remote,true); return reply("✅ AntiStatus ON"); }
-    if(o==="off"){ settingDB.antistatus.set(remote,false); return reply("❌ AntiStatus OFF"); }
-    return reply(`${prefix}antistatus on/off`);
+// 2. ANTISTATUS
+commands.set("antistatus", {
+  category: "Settings Menu",
+  execute: async ({ m, args, isOwner }) => {
+    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
+    let mode = args[0]?.toLowerCase();
+    if (mode === "on") { settingDB.antistatus = true; return m.reply("✅ AntiStatus ON!"); }
+    else if (mode === "off") { settingDB.antistatus = false; return m.reply("❌ AntiStatus OFF!"); }
+    else { return m.reply(`AntiStatus: ${settingDB.antistatus? "ON" : "OFF"}`); }
   }
 });
 
-// 3. STATUS VIEW
-add({
-  name: "statusview", aliases: ["sv"], category: "Setting", desc: "Auto status view",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!listeners.view){ listeners.view=true; sock.ev.on('messages.upsert', async({messages})=>{ for(let m of messages) if(m.key.remoteJid==="status@broadcast") for(let[jid,en]of settingDB.statusview) if(en) try{ await sock.readMessages([m.key]); }catch{} }); }
-    let o=(args[0]||"").toLowerCase();
-    if(o==="on"){ settingDB.statusview.set(remote,true); return reply("✅ StatusView ON"); }
-    if(o==="off"){ settingDB.statusview.set(remote,false); return reply("❌ StatusView OFF"); }
-    return reply(`${prefix}statusview on/off`);
+// 3. BOTDP
+commands.set("botdp", {
+  category: "Settings Menu",
+  execute: async ({ m, isOwner }) => {
+    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
+    return m.reply("✅ BotDP - Image ke sath.botdp reply karo");
   }
 });
 
-// 4. STATUS REACT
-add({
-  name: "statusreact", aliases: ["sr"], category: "Setting", desc: "Auto status react",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!listeners.react){ listeners.react=true; sock.ev.on('messages.upsert', async({messages})=>{ for(let m of messages){ if(m.key.remoteJid!=="status@broadcast"||m.key.fromMe) continue; for(let[jid,d]of settingDB.statusreact) if(d?.enabled) try{ let e=d.emoji||["❤️","🔥","😍","👍"][Math.floor(Math.random()*4)]; await sock.sendMessage("status@broadcast",{react:{text:e,key:m.key}},{statusJidList:[m.key.participant]}); }catch{} } }); }
-    let o=(args[0]||"").toLowerCase(); let em=args[1];
-    if(o==="on"){ settingDB.statusreact.set(remote,{enabled:true,emoji:em||null}); return reply(`✅ StatusReact ON ${em||"Random"}`); }
-    if(o==="off"){ settingDB.statusreact.set(remote,{enabled:false}); return reply("❌ StatusReact OFF"); }
-    return reply(`${prefix}statusreact on [emoji] / off`);
+// 4. ANTILINK
+commands.set("antilink", {
+  category: "Settings Menu",
+  execute: async ({ m, args, isOwner }) => {
+    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
+    let mode = args[0]?.toLowerCase(); let chatId = m.chat;
+    if (mode === "on") { settingDB.antilink.set(chatId, true); return m.reply("✅ Antilink ON!"); }
+    else if (mode === "off") { settingDB.antilink.delete(chatId); return m.reply("❌ Antilink OFF!"); }
+    else { return m.reply(`Antilink: ${settingDB.antilink.has(chatId)? "ON" : "OFF"}`); }
   }
 });
 
-// 5. STATUS LIKE
-add({
-  name: "statuslike", aliases: ["sl"], category: "Setting", desc: "Status like",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!listeners.like){ listeners.like=true; sock.ev.on('messages.upsert', async({messages})=>{ for(let m of messages){ if(m.key.remoteJid!=="status@broadcast"||m.key.fromMe) continue; for(let[jid,d]of settingDB.statuslike) if(d?.enabled) try{ await sock.sendMessage("status@broadcast",{react:{text:d.emoji||"❤️",key:m.key}},{statusJidList:[m.key.participant]}); await sock.readMessages([m.key]); }catch{} } }); }
-    let o=(args[0]||"").toLowerCase(); let em=args[1]||"❤️";
-    if(o==="on"){ settingDB.statuslike.set(remote,{enabled:true,emoji:em}); return reply(`✅ StatusLike ON ${em}`); }
-    if(o==="off"){ settingDB.statuslike.set(remote,{enabled:false}); return reply("❌ OFF"); }
-    return reply(`${prefix}statuslike on / off`);
+// 5. ANTIVIEWONCE
+commands.set("antiviewonce", {
+  category: "Settings Menu",
+  execute: async ({ m, args, isOwner }) => {
+    if (!isOwner) return m.reply("🚫 *Only Owner & Pair Owner!*");
+    let chatId = m.chat; let mode = args[0]?.toLowerCase();
+    if (mode === "on") { settingDB.antiviewonce.set(chatId, true); return m.reply("✅ AntiViewOnce ON!"); }
+    else { settingDB.antiviewonce.delete(chatId); return m.reply("❌ AntiViewOnce OFF!"); }
   }
 });
 
-// 6. BOT DP
-add({
-  name: "botdp", category: "Setting", desc: "Set bot dp",
-  async run({ sock, msg, reply, prefix }) {
-    try{
-      let q=msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-      let img=msg.message?.imageMessage||q?.imageMessage;
-      if(!img) return reply(`Image ke sath ${prefix}botdp bhejo`);
-      let buf=await sock.downloadMediaMessage(q?{message:{imageMessage:img}}:msg);
-      await sock.updateProfilePicture(sock.user.id, buf);
-      return reply("✅ Bot DP Changed");
-    }catch{ return reply("❌ Fail"); }
-  }
-});
+// 6-10. AUTOREACT, AUTOTYPING, AUTORECORDING, AUTOSTATUSVIEW, AUTOSTATUSREACT
+commands.set("autoreact", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.autoreact.set(c,true);return m.reply("✅ AutoReact ON!");} else {settingDB.autoreact.delete(c);return m.reply("❌ AutoReact OFF!");}
+}});
+commands.set("autotyping", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.autotyping.set(c,true);return m.reply("✅ AutoTyping ON!");} else {settingDB.autotyping.delete(c);return m.reply("❌ OFF!");}
+}});
+commands.set("autorecording", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.autorecording.set(c,true);return m.reply("✅ AutoRecording ON!");} else {settingDB.autorecording.delete(c);return m.reply("❌ OFF!");}
+}});
+commands.set("autostatusview", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.autostatusview=true;return m.reply("✅ AutoStatusView ON!");} else {settingDB.autostatusview=false;return m.reply("❌ OFF!");}
+}});
+commands.set("autostatusreact", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.autostatusreact=true;return m.reply("✅ AutoStatusReact ON!");} else {settingDB.autostatusreact=false;return m.reply("❌ OFF!");}
+}});
 
-// 7. AUTO REACT
-add({
-  name: "autoreact", aliases: ["ar"], category: "Setting", desc: "Auto react chat",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!listeners.areact){ listeners.areact=true; sock.ev.on('messages.upsert', async({messages})=>{ for(let m of messages){ if(m.key.fromMe||!m.message) continue; let d=settingDB.autoreact.get(m.key.remoteJid); if(!d?.enabled) continue; try{ let e=d.emoji||["❤️","🔥","😂","👍"][Math.floor(Math.random()*4)]; await sock.sendMessage(m.key.remoteJid,{react:{text:e,key:m.key}}); }catch{} } }); }
-    let o=(args[0]||"").toLowerCase(); let em=args[1];
-    if(o==="on"){ settingDB.autoreact.set(remote,{enabled:true,emoji:em||null}); return reply(`✅ AutoReact ON ${em||"Random"}`); }
-    if(o==="off"){ settingDB.autoreact.set(remote,{enabled:false}); return reply("❌ AutoReact OFF"); }
-    return reply(`${prefix}autoreact on [emoji] / off`);
-  }
-});
+// 11. AUTOSTATUSREPLY
+commands.set("autostatusreply", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let t=args.join(" "); if(!t)return m.reply("Use:.autostatusreply on <text> / off");
+  if(t.toLowerCase().startsWith("off")){settingDB.autostatusreply.clear();return m.reply("❌ OFF!");} else {settingDB.autostatusreply.set("msg", t.replace(/^on\s+/i,""));return m.reply(`✅ ON: ${t}`);}
+}});
 
-// 8. ALWAYS ONLINE
-let onlineInt=null;
-add({
-  name: "alwaysonline", aliases: ["aonline"], category: "Setting", desc: "Always online",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!onlineInt) onlineInt=setInterval(async()=>{ for(let[jid,en]of settingDB.alwaysonline) if(en) try{ await sock.sendPresenceUpdate("available",jid); }catch{} },15000);
-    let o=(args[0]||"").toLowerCase();
-    if(o==="on"){ settingDB.alwaysonline.set(remote,true); await sock.sendPresenceUpdate("available",remote); return reply("✅ AlwaysOnline ON"); }
-    if(o==="off"){ settingDB.alwaysonline.set(remote,false); return reply("❌ AlwaysOnline OFF"); }
-    return reply(`${prefix}alwaysonline on/off`);
-  }
-});
+// 12-15. ANTIGROUPLEFT, WELCOME, GOODBYE, ANTISPAM
+commands.set("antigroupleft", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.antigroupleft.set(c,true);return m.reply("✅ AntiGroupLeft ON!");} else {settingDB.antigroupleft.delete(c);return m.reply("❌ OFF!");}
+}});
+commands.set("welcome", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.welcome.set(c,true);return m.reply("✅ Welcome ON!");} else {settingDB.welcome.delete(c);return m.reply("❌ OFF!");}
+}});
+commands.set("goodbye", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.goodbye.set(c,true);return m.reply("✅ Goodbye ON!");} else {settingDB.goodbye.delete(c);return m.reply("❌ OFF!");}
+}});
+commands.set("antispam", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.antispam.set(c,true);return m.reply("✅ AntiSpam ON!");} else {settingDB.antispam.delete(c);return m.reply("❌ OFF!");}
+}});
 
-// 9. AUTO TYPING
-add({
-  name: "autotyping", aliases: ["at"], category: "Setting", desc: "Auto typing",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!listeners.typing){ listeners.typing=true; sock.ev.on('messages.upsert', async({messages})=>{ for(let m of messages){ if(m.key.fromMe) continue; if(settingDB.autotyping.get(m.key.remoteJid)) try{ await sock.sendPresenceUpdate("composing", m.key.remoteJid); }catch{} } }); }
-    let o=(args[0]||"").toLowerCase();
-    if(o==="on"){ settingDB.autotyping.set(remote,true); return reply("✅ AutoTyping ON"); }
-    if(o==="off"){ settingDB.autotyping.set(remote,false); return reply("❌ AutoTyping OFF"); }
-    return reply(`${prefix}autotyping on/off`);
-  }
-});
-
-// 10. AUTO RECORDING
-add({
-  name: "autorecording", aliases: ["arec"], category: "Setting", desc: "Auto recording",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!listeners.recording){ listeners.recording=true; sock.ev.on('messages.upsert', async({messages})=>{ for(let m of messages){ if(m.key.fromMe) continue; if(settingDB.autorecording.get(m.key.remoteJid)) try{ await sock.sendPresenceUpdate("recording", m.key.remoteJid); }catch{} } }); }
-    let o=(args[0]||"").toLowerCase();
-    if(o==="on"){ settingDB.autorecording.set(remote,true); return reply("✅ AutoRecording ON"); }
-    if(o==="off"){ settingDB.autorecording.set(remote,false); return reply("❌ AutoRecording OFF"); }
-    return reply(`${prefix}autorecording on/off`);
-  }
-});
-
-// 11. ANTI-CALL
-add({
-  name: "anticall", category: "Setting", desc: "Anti call mode",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!listeners.call){
-      listeners.call=true;
-      sock.ev.on('call', async(calls)=>{
-        for(let call of calls){
-          if(call.status!=="offer") continue;
-          for(let[jid,en]of settingDB.anticall) if(en){
-            try{ await sock.rejectCall(call.id, call.from); await sock.sendMessage(call.from, {text:"*📵 Call Rejected*\nBot is in AntiCall Mode"}); }catch{}
-          }
-        }
-      });
-    }
-    let o=(args[0]||"").toLowerCase();
-    if(o==="on"){ settingDB.anticall.set(remote,true); return reply("✅ AntiCall ON - Ab calls reject hongi"); }
-    if(o==="off"){ settingDB.anticall.set(remote,false); return reply("❌ AntiCall OFF"); }
-    return reply(`${prefix}anticall on/off`);
-  }
-});
-
-// 12. OWNER NAME
-add({
-  name: "ownername", category: "Setting", desc: "Set owner name",
-  async run({ remote, args, reply, prefix }) {
-    let name = args.join(" ");
-    if(!name) return reply(`Current Owner Name: *${settingDB.ownerName}*\n\n${prefix}ownername Ali`);
-    settingDB.ownerName = name;
-    return reply(`✅ Owner Name Set: *${name}*`);
-  }
-});
-
-// 13. OWNER NUMBER
-add({
-  name: "ownernumber", category: "Setting", desc: "Set owner number",
-  async run({ args, reply, prefix }) {
-    let num = args[0];
-    if(!num) return reply(`Current: ${settingDB.ownerNumber||"Not set"}\n${prefix}ownernumber 92300XXXXXXX`);
-    settingDB.ownerNumber = num.replace(/[^0-9]/g,"");
-    return reply(`✅ Owner Number Set: ${settingDB.ownerNumber}`);
-  }
-});
-
-// 14. SET WELCOME
-add({
-  name: "setwelcome", category: "Setting", desc: "Set welcome msg",
-  async run({ remote, args, reply, prefix }) {
-    let text = args.join(" ");
-    if(!text) return reply(`*SetWelcome*\nCurrent: ${settingDB.welcome.get(remote)||"Default"}\n\n${prefix}setwelcome Welcome @user to group!\n\nUse @user for mention`);
-    settingDB.welcome.set(remote, text);
-    return reply(`✅ Welcome Set:\n${text}`);
-  }
-});
-
-// 15. SET GOODBYE
-add({
-  name: "setgoodbye", aliases: ["setleft"], category: "Setting", desc: "Set goodbye msg",
-  async run({ remote, args, reply, prefix }) {
-    let text = args.join(" ");
-    if(!text) return reply(`*SetGoodbye*\nCurrent: ${settingDB.goodbye.get(remote)||"Default"}\n\n${prefix}setgoodbye Goodbye @user`);
-    settingDB.goodbye.set(remote, text);
-    return reply(`✅ Goodbye Set:\n${text}`);
-  }
-});
-
-// 16. AUTO READ
-add({
-  name: "autoread", category: "Setting", desc: "Auto read msgs",
-  async run({ sock, remote, args, reply, prefix }) {
-    if(!listeners.read){ listeners.read=true; sock.ev.on('messages.upsert', async({messages})=>{ for(let m of messages){ if(settingDB.autoread.get(m.key.remoteJid)) try{ await sock.readMessages([m.key]); }catch{} } }); }
-    let o=(args[0]||"").toLowerCase();
-    if(o==="on"){ settingDB.autoread.set(remote,true); return reply("✅ AutoRead ON"); }
-    if(o==="off"){ settingDB.autoread.set(remote,false); return reply("❌ AutoRead OFF"); }
-    return reply(`${prefix}autoread on/off`);
-  }
-});
-
-// 17. PREFIX
-add({
-  name: "prefix", aliases: ["setprefix"], category: "Setting", desc: "Change bot prefix",
-  async run({ args, reply }) {
-    let p = args[0];
-    if(!p) return reply(`Current Prefix: *${settingDB.prefix}*\n\n.prefix!\n.prefix.`);
-    settingDB.prefix = p;
-    // agar tumhare bot me global prefix hai to yahan set karna padega
-    // global.PREFIX = p;
-    return reply(`✅ Prefix Changed to: *${p}*\nRestart bot if needed.`);
-  }
-});
-
-// 18. SETTINGS LIST
-add({
-  name: "settings", category: "Setting", desc: "Show all settings",
-  async run({ remote, reply, prefix }) {
-    let t = `*⚙️ BOT SETTINGS*\n\n`;
-    t+=`1. Antidelete: ${settingDB.antidelete.get(remote)?"ON ✅":"OFF ❌"}\n`;
-    t+=`2. AntiStatus: ${settingDB.antistatus.get(remote)?"ON ✅":"OFF ❌"}\n`;
-    t+=`3. StatusView: ${settingDB.statusview.get(remote)?"ON ✅":"OFF ❌"}\n`;
-    t+=`4. StatusReact: ${settingDB.statusreact.get(remote)?.enabled?"ON ✅":"OFF ❌"}\n`;
-    t+=`5. StatusLike: ${settingDB.statuslike.get(remote)?.enabled?"ON ✅":"OFF ❌"}\n`;
-    t+=`6. AutoReact: ${settingDB.autoreact.get(remote)?.enabled?"ON ✅":"OFF ❌"}\n`;
-    t+=`7. AlwaysOnline: ${settingDB.alwaysonline.get(remote)?"ON ✅":"OFF ❌"}\n`;
-    t+=`8. AutoTyping: ${settingDB.autotyping.get(remote)?"ON ✅":"OFF ❌"}\n`;
-    t+=`9. AutoRecording: ${settingDB.autorecording.get(remote)?"ON ✅":"OFF ❌"}\n`;
-    t+=`10. AntiCall: ${settingDB.anticall.get(remote)?"ON ✅":"OFF ❌"}\n`;
-    t+=`11. AutoRead: ${settingDB.autoread.get(remote)?"ON ✅":"OFF ❌"}\n`;
-    t+=`12. Owner: ${settingDB.ownerName} - ${settingDB.ownerNumber||"Not set"}\n`;
-    t+=`13. Prefix: ${settingDB.prefix}\n`;
-    t+=`\nUse ${prefix}settings to see this.`;
-    return reply(t);
-  }
-});
+// 16-18. AUTOBLOCK, PMBLOCK, ONLYADMIN
+commands.set("autoblock", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.autoblock.set("global",true);return m.reply("✅ AutoBlock ON!");} else {settingDB.autoblock.delete("global");return m.reply("❌ OFF!");}
+}});
+commands.set("pmblock", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.pmblock=true;return m.reply("✅ PmBlock ON!");} else {settingDB.pmblock=false;return m.reply("❌ OFF!");}
+}});
+commands.set("onlyadmin", { category: "Settings Menu", execute: async ({ m, args, isOwner }) => {
+  if (!isOwner) return m.reply("🚫 *Only Owner!*"); let c=m.chat; let md=args[0]?.toLowerCase();
+  if(md==="on"){settingDB.onlyadmin.set(c,true);return m.reply("✅ OnlyAdmin ON!");} else {settingDB.onlyadmin.delete(c);return m.reply("❌ OFF!");}
+}});
 
 function add(def) {
   const cmd = { category: "General", desc: "", aliases: [], ...def };
