@@ -586,8 +586,6 @@ add({
   aliases: ["ad"],
   category: "Group",
   desc: "Anti-delete on/off",
-  group: true,
-  admin: true,
   async run({ sock, remote, args, reply, prefix }) {
     if (!antideleteListener) {
       antideleteListener = true;
