@@ -576,3 +576,55 @@ for (const name of NEEDS_API) {
 
 // (getContext is re-exported for plugins that may want it later)
 export { getContext };
+/* ───────────── ANTI-DELETE ───────────── */
+const antideleteStore = new Map();
+const antideleteEnabled = new Map();
+let antideleteListener = false;
+
+add({
+  name: "antidelete",
+  aliases: ["ad"],
+  category: "Group",
+  desc: "Anti-delete on/off",
+  group: true,
+  admin: true,
+  async run({ sock, remote, args, reply, prefix }) {
+    if (!antideleteListener) {
+      antideleteListener = true;
+      sock.ev.on('messages.upsert', async ({ messages }) => {
+        for (let m of messages) {
+          if (!m.message || m.key.fromMe) continue;
+          let jid = m.key.remoteJid;
+          if (!antideleteStore.has(jid)) antideleteStore.set(jid, new Map());
+          antideleteStore.get(jid).set(m.key.id, m);
+        }
+      });
+
+      sock.ev.on('messages.update', async (updates) => {
+        for (let { key, update } of updates) {
+          if (update.messageStubType === 1 || update.messageStubType === 2) {
+            let jid = key.remoteJid;
+            if (!antideleteEnabled.get(jid)) continue;
+            let saved = antideleteStore.get(jid)?.get(key.id);
+            if (!saved) continue;
+            try {
+              await sock.sendMessage(jid, { text: `*🚫 Anti-Delete*\nMessage deleted, dekh lo:` });
+              await sock.sendMessage(jid, { forward: saved }, { quoted: saved });
+            } catch {}
+          }
+        }
+      });
+    }
+
+    let opt = (args[0] || "").toLowerCase();
+    if (opt === "on") {
+      antideleteEnabled.set(remote, true);
+      return reply("✅ *Anti-Delete ON*");
+    } else if (opt === "off") {
+      antideleteEnabled.set(remote, false);
+      return reply("❌ *Anti-Delete OFF*");
+    } else {
+      return reply(`Use: ${prefix}antidelete on / off`);
+    }
+  }
+});
