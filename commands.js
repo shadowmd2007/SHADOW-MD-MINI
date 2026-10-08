@@ -5,7 +5,6 @@ import { jidNumber, formatUptime, getContext, getTargets } from "./utils.js";
 export const commands = new Map();
 export const categories = new Map();
 
-  "Settings Menu": "⚙️",
 const EMOJI = {
   General: "🏠",
   Info: "ℹ️",
@@ -14,7 +13,6 @@ const EMOJI = {
   Group: "👥",
   "Settings Menu": "⚙️",
   "Needs API": "🔌"
-};
 };
 // ========= FULL SETTING COMMANDS - 18 COMMANDS =========
 
