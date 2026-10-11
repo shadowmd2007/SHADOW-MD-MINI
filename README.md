@@ -1,3 +1,5 @@
+<img width="900" height="1599" alt="1000097298" src="https://github.com/user-attachments/assets/9abd1c9f-4b66-4187-9f85-a187126e083c" />
+
 SHADOW MD MINI A Railway-ready WhatsApp Multi-Device mini bot with an
 integrated web pairing page. Branding Bot: SHADOW MD Owner: RANA
 FURQAN Owner number: 923003719761 GitHub:
