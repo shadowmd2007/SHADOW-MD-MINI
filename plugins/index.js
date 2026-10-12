@@ -1,37 +1,48 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
+import fs from "fs";
+import path from "path";
+import { fileURLToPath, pathToFileURL } from "url";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 export const commands = new Map();
-export const categories = new Map();
-let loaded = false;
 
-export async function loadCommands() {
-  if (loaded) return { loaded: commands.size, failed: 0 };
-  const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../commands");
-  const files = (await fs.readdir(dir)).filter(f => f.endsWith(".js") && f !== "aliases.js").sort();
-  let failed = 0;
-  for (const file of files) {
-    try {
-      const mod = await import(pathToFileURL(path.join(dir, file)).href + `?v=${Date.now()}`);
-      const c = mod.command;
-      if (!c?.name || typeof c.run !== "function") throw new Error("Missing command.name or command.run");
-      const names = [c.name, ...(c.aliases || [])].map(x => String(x).toLowerCase()).filter(Boolean);
-      for (const name of names) {
-        if (commands.has(name)) throw new Error(`Duplicate command/alias: ${name}`);
-        commands.set(name, c);
+function loadCommands(dir) {
+  const items = fs.readdirSync(dir);
+  for (const item of items) {
+    const fullPath = path.join(dir, item);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      loadCommands(fullPath);
+    } else if (item.endsWith(".js")) {
+      try {
+        const fileUrl = pathToFileURL(fullPath).href + `?t=${Date.now()}`;
+        import(fileUrl).then(mod => {
+          const cmd = mod.default || mod;
+          if (cmd && cmd.name) {
+            commands.set(cmd.name.toLowerCase(), cmd);
+          }
+        });
+      } catch (e) {
+        console.log(`Error ${item}: ${e.message}`);
       }
-      if (!c.hidden) {
-        const cat = c.category || "OTHER";
-        if (!categories.has(cat)) categories.set(cat, []);
-        categories.get(cat).push(c);
-      }
-    } catch (err) {
-      failed++;
-      console.error(`[COMMANDS] Failed: ${file}`, err);
     }
   }
-  loaded = true;
-  console.log(`[COMMANDS] Loaded: ${commands.size} | Failed files: ${failed}`);
-  return { loaded: commands.size, failed };
 }
+
+// Sync load for first time
+const commandsPath = path.join(__dirname, "../commands");
+const files = fs.readdirSync(commandsPath);
+for (const file of files) {
+  if (!file.endsWith(".js")) continue;
+  try {
+    const filePath = path.join(commandsPath, file);
+    const fileUrl = pathToFileURL(filePath).href;
+    const mod = await import(fileUrl);
+    const cmd = mod.default || mod;
+    if (cmd && cmd.name) {
+      commands.set(cmd.name.toLowerCase(), cmd);
+    }
+  } catch (e) {
+    console.log(`❌ ${file}: ${e.message}`);
+  }
+}
+console.log(`✅ Loaded ${commands.size} commands`);
