@@ -4,7 +4,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import * as BaileysModule from "@whiskeysockets/baileys";
 
-// Handle both ESM and CommonJS interop shapes used by Baileys releases.
 const Baileys = BaileysModule.makeWASocket
   ? BaileysModule
   : (BaileysModule.default || BaileysModule);
@@ -30,6 +29,20 @@ let connectedAt = null;
 let startPromise = null;
 let resetting = false;
 
+// --- FIX FOR RAILWAY/RENDER PERMISSION ERROR ---
+// Agar config me /app likha bhi ho to hum usko sahi kar denge
+function getSafeAuthDir() {
+  let dir = config.authDir || "./auth";
+  // Agar /app se start ho raha hai to usko relative bana do
+  if (dir.startsWith("/app")) {
+    dir = "./auth";
+  }
+  // Hamesha project folder ke andar banao
+  return path.isAbsolute(dir) ? path.join(process.cwd(), path.basename(dir)) : path.join(process.cwd(), dir);
+}
+
+const AUTH_DIR = getSafeAuthDir();
+
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 registerWeb(app, () => ({
@@ -40,7 +53,7 @@ registerWeb(app, () => ({
 }));
 
 app.listen(config.port, "0.0.0.0", () => {
-  logger.info(`SHADOW MD web server listening on ${config.port}`);
+  logger.info(`SHADOW MD web server listening on ${config.port} | AuthDir: ${AUTH_DIR}`);
 });
 
 async function startBot() {
@@ -50,13 +63,10 @@ async function startBot() {
   if (typeof makeWASocket !== "function") {
     throw new Error("Baileys socket factory was not loaded. Reinstall dependencies and redeploy.");
   }
-  await fs.mkdir(config.authDir, { recursive: true });
-  const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
+  await fs.mkdir(AUTH_DIR, { recursive: true });
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   let version;
   try {
-    // Prefer the actual current WhatsApp Web version. The older helper can
-    // return a stale version that allows a code to be generated but causes
-    // WhatsApp to reject the device-link operation.
     if (typeof fetchLatestWaWebVersion === "function") {
       ({ version } = await fetchLatestWaWebVersion({}));
     }
@@ -76,8 +86,6 @@ async function startBot() {
     auth: state,
     logger,
     printQRInTerminal: false,
-    // Use a canonical browser tuple for phone-number pairing. Custom labels
-    // can produce pairing codes that WhatsApp rejects as dead/invalid.
     browser: typeof Browsers?.macOS === "function" ? Browsers.macOS("Chrome") : ["Mac OS", "Chrome", "1.0.0"],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
@@ -95,7 +103,7 @@ async function startBot() {
       logger.info("SHADOW MD connected");
       try {
         await sock.sendMessage(sock.user.id, {
-          text: `🟢 *${config.botName} ONLINE*\\n\\nOwner: ${config.ownerName}\\nPrefix: ${config.prefix}\\nVersion: ${config.version}`
+          text: `🟢 *${config.botName} ONLINE*\n\nOwner: ${config.ownerName}\nPrefix: ${config.prefix}\nVersion: ${config.version}`
         });
       } catch {}
     }
@@ -107,7 +115,7 @@ async function startBot() {
       logger.warn({ statusCode, loggedOut }, "WhatsApp connection closed");
       sock = null;
       if (!loggedOut) setTimeout(startBot, 5000);
-      else logger.error("Logged out. Clear the Railway auth volume before pairing again.");
+      else logger.error("Logged out. Clear the auth folder before pairing again.");
     }
   });
 
@@ -134,8 +142,8 @@ async function resetSession() {
     try { old.end(new Error("Session reset for pairing")); } catch {}
   }
   await new Promise(r => setTimeout(r, 500));
-  await fs.rm(config.authDir, { recursive: true, force: true });
-  await fs.mkdir(config.authDir, { recursive: true });
+  await fs.rm(AUTH_DIR, { recursive: true, force: true });
+  await fs.mkdir(AUTH_DIR, { recursive: true });
   resetting = false;
 }
 
@@ -150,8 +158,6 @@ export async function requestPairing(number, forceReset = false) {
   if (forceReset) await resetSession();
   if (!sock) await startBot();
 
-  // Let the initial WebSocket handshake reach the pairing-ready state before
-  // requesting the code. Requesting immediately can race companion_hello.
   if (sock.user && !forceReset) return { connected: true, code: null, needsReset: true };
   await new Promise(resolve => setTimeout(resolve, 1800));
   if (!sock || resetting) throw new Error("Pairing socket was reset. Please generate a new code.");
@@ -171,5 +177,3 @@ app.post("/api/pair", async (req, res) => {
 });
 
 startBot().catch(err => logger.error({ err }, "Initial bot start failed"));
-
-                  
