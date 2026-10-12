@@ -6,20 +6,19 @@ export default {
   async execute(m, { commands }) {
     try {
       let total = commands.size;
-      let menuText = `*┌───⬣ SHADOW MD ⬣───┐*\n`;
-      menuText += `*│ OWNER: RANA FURQAN*\n`;
-      menuText += `*│ PREFIX: .*\n`;
-      menuText += `*│ COMMANDS: ${total}*\n`;
-      menuText += `*└───────────────┘*\n\n`;
+      let menuText = "*SHADOW MD*\n";
+      menuText += `OWNER: RANA FURQAN\n`;
+      menuText += `PREFIX: .\n`;
+      menuText += `COMMANDS: ${total}\n\n`;
 
       for (let [name] of commands) {
-        menuText += `• ${name}\n`;
+        menuText += `.${name}\n`;
       }
-      
-      menuText += `\n> Powered by SHADOW MD`;
+
+      menuText += `\nPowered by SHADOW MD`;
       await m.reply(menuText);
     } catch (e) {
-      await m.reply("Menu error: " + e.message);
+      await m.reply("Menu Error: " + e.message);
     }
   }
 }
