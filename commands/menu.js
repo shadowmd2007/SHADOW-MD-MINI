@@ -1,32 +1,25 @@
-import { config } from "../config.js";
-import { reply } from "../lib/command-utils.js";
-import { commands } from "../plugins/index.js";
-
-export const command = {
-  name:"menu",
-  aliases:["allmenu","mainmenu"],
-  category:"MAIN",
-  description:"Show all working commands.",
-  run: async ({sock,remote,msg}) => {
-    const order=["MAIN","GROUP","OWNER","FUN","MATH","TOOLS","UTILITY","OTHER"];
-    const grouped=new Map(order.map(x=>[x,[]]));
-    for(const c of commands.values()){
-      const cat=c.category||"OTHER";
-      if(!grouped.has(cat)) grouped.set(cat,[]);
-      grouped.get(cat).push(c);
-    }
-    let out=`*┌───⭓ ${config.botName} ⭓───*\n*│* 👑 *OWNER:* ${config.ownerName}\n*│* 📱 *BAILEYS:* MULTI DEVICE\n*│* ⚙️ *TYPE:* NODEJS\n*│* 🔑 *PREFIX:* ${config.prefix}\n*│* 🛡️ *MODE:* ${config.mode}\n*│* 📦 *VERSION:* ${config.version}\n*│* 🧩 *WORKING COMMANDS:* ${commands.size}\n*└───────────────────⭓*\n\n`;
-    for(const [cat,arr] of grouped){
-      if(!arr.length) continue;
-      arr.sort((a,b)=>a.name.localeCompare(b.name));
-      out+=`*┌───⭓ ${cat.toLowerCase()} ⭓───*\n`;
-      for(const c of arr) out+=`*│* ⬡ .${c.name}\n`;
-      out+=`*└───────────────────⭓*\n\n`;
-    }
+export default {
+  name: "menu",
+  alias: ["allmenu", "help", "list"],
+  category: "general",
+  desc: "Show all commands",
+  async execute(m, { commands }) {
     try {
-      await sock.sendMessage(remote, { image: { url: config.imageUrl }, caption: out.trim() }, { quoted: msg });
-    } catch {
-      return reply(sock,remote,msg,out.trim());
+      let total = commands.size;
+      let menuText = `*┌───⬣ SHADOW MD ⬣───┐*\n`;
+      menuText += `*│ OWNER: RANA FURQAN*\n`;
+      menuText += `*│ PREFIX: .*\n`;
+      menuText += `*│ COMMANDS: ${total}*\n`;
+      menuText += `*└───────────────┘*\n\n`;
+
+      for (let [name] of commands) {
+        menuText += `• ${name}\n`;
+      }
+      
+      menuText += `\n> Powered by SHADOW MD`;
+      await m.reply(menuText);
+    } catch (e) {
+      await m.reply("Menu error: " + e.message);
     }
   }
-};
+}
