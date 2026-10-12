@@ -156,4 +156,4 @@ app.post("/api/pair", async (req, res) => {
   }
 });
 
-startBot().catch(err => logger.error({ err }, "Initial bot start failed"));
+startBot().catch(err => logger.error({ err }, "Initial bot start failed")); 
