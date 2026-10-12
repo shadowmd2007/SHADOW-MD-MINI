@@ -27,4 +27,4 @@ for (const file of files) {
   }
 }
 
-console.log(`✅ Total Loaded: ${commands.size} commands`);
+console.log(`✅ Total Loaded: ${commands.size} commands`):
