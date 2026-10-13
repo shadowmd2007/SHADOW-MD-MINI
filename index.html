@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d12">
+  <title>SHADOW MD - Pair your WhatsApp</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="card">
+    <img id="botImage" class="avatar" alt="SHADOW MD" width="96" height="96" hidden>
+    <h1 id="botName">SHADOW MD</h1>
+    <p class="sub">Link your WhatsApp with a pairing code</p>
+
+    <form id="pairForm" autocomplete="off" novalidate>
+      <label for="number">WhatsApp number (with country code)</label>
+      <input id="number" name="number" type="tel" inputmode="numeric" placeholder="923XXXXXXXXX" maxlength="20" required>
+      <p class="hint">Digits only. No <b>+</b>, no leading <b>0</b>. Example: 923001234567</p>
+      <button id="submitBtn" type="submit">Get pairing code</button>
+    </form>
+
+    <section id="statusBox" class="status" role="status" aria-live="polite" hidden>
+      <div id="statusText" class="status-text"></div>
+      <div id="codeBox" class="code-box" hidden>
+        <div id="code" class="code" aria-label="Pairing code"></div>
+        <button id="copyBtn" type="button" class="secondary">Copy code</button>
+        <div id="timer" class="timer"></div>
+      </div>
+      <button id="cancelBtn" type="button" class="link-btn" hidden>Cancel</button>
+      <button id="retryBtn" type="button" class="secondary" hidden>Try again</button>
+    </section>
+
+    <ol class="steps">
+      <li>Enter your number above and tap <b>Get pairing code</b>.</li>
+      <li>On your phone open <b>WhatsApp &rarr; Settings &rarr; Linked devices</b>.</li>
+      <li>Tap <b>Link a device</b>, then <b>Link with phone number instead</b>.</li>
+      <li>Type the code shown here. This page confirms only when WhatsApp is really connected.</li>
+    </ol>
+
+    <nav class="links">
+      <a id="channelLink" href="#" target="_blank" rel="noopener noreferrer">Channel</a>
+      <a id="groupLink" href="#" target="_blank" rel="noopener noreferrer">Group</a>
+      <a id="githubLink" href="#" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </nav>
+    <footer id="footer"></footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
