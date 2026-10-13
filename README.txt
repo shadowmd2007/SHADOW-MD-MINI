@@ -1,0 +1,1 @@
+The pairing UI is served directly by the bot at /. No separate website project is required.
