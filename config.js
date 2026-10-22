@@ -15,4 +15,4 @@ export const config = {
   version: "2.0.0",
   authDir: process.env.AUTH_DIR || "./auth",
   port: process.env.PORT || 3000
-}
+} 
