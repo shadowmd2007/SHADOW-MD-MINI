@@ -39,4 +39,4 @@ async function startBot(){
 }
 
 startBot();
-import('./web.js');
+import('./web.js'); 
