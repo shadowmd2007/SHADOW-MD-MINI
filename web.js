@@ -14,7 +14,7 @@ export function registerWeb(app, getState) {
   <p class="muted">WEB PAIRING PANEL</p>
   <div class="line"></div>
   <label>WhatsApp Number</label>
-  <input id="number" inputmode="numeric" placeholder="923003719761">
+  <input id="number" inputmode="numeric" placeholder="923263695287">
   <button id="pair">GET PAIRING CODE</button>
   <div id="result" class="result">Enter your number without +, spaces or dashes.</div>
   <div class="status" id="status">● Checking bot status...</div>
