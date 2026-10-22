@@ -98,4 +98,4 @@ function createServer({ config, manager, logger }) {
   return app;
 }
 
-module.exports = { createServer };
+module.exports = { createServer }; 
