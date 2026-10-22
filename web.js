@@ -17,50 +17,72 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 let activeSockets = {};
 
-const MY_PIC = "data:image/jpeg;base64,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";
+// Tumhara Original Link - Isi se pic ayegi, no changing
+const IBB_PAGE_LINK = "https://ibb.co/j9hXMSJH";
 
-app.get('/', (req,res)=>{
-  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SHADOW-MD MINI</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000;color:#fff;font-family:Arial;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}.box{background:#1c1c1e;width:100%;max-width:430px;padding:30px 25px;border-radius:22px;text-align:center;border:1px solid #2a2a2a}.logo{width:130px;height:130px;border-radius:50%;border:3px solid #25D366;object-fit:cover;margin-bottom:15px}h2{font-size:27px} .cmd{color:#25D366;font-weight:bold;margin:10px 0 20px}input{width:100%;padding:16px;margin:20px 0 15px;border-radius:12px;border:none;font-size:18px;text-align:center}button{width:100%;padding:16px;background:#25D366;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:bold}#code{margin-top:22px;font-size:34px;font-weight:bold;color:#25D366;letter-spacing:4px}#msg{font-size:12px;color:#888;margin-top:10px}</style></head><body><div class="box"><img class="logo" src="' + MY_PIC + '" /><h2>SHADOW-MD MINI</h2><p class="cmd">COMMANDS: 77 Loaded</p><p style="color:#aaa;font-size:14px">Enter number with country code</p><input id="num" type="number" value="923263695287" /><button onclick="pair()">Get Pair Code</button><div id="code"></div><div id="msg">WhatsApp > Linked Devices > Link with phone number</div></div><script>async function pair(){const n=document.getElementById("num").value;document.getElementById("code").innerText="Generating...";try{const r=await fetch("/pair?number="+n);const d=await r.json();document.getElementById("code").innerText=d.code||d.error;document.getElementById("msg").innerText=d.code?"Code mil gaya! Ab WhatsApp me foran lagao - WhatsApp khud notification dega!":"Retry";if(d.code){if(Notification&&Notification.permission!=="granted")Notification.requestPermission();if(Notification&&Notification.permission==="granted"){new Notification("SHADOW-MD Code Aya!",{body:"Code: "+d.code+" - WhatsApp me lagao!"});}}}catch(e){document.getElementById("code").innerText="Server Error";}}</script></body></html>';
+async function getDirectImageFromIBB() {
+  try {
+    const res = await fetch(IBB_PAGE_LINK, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const html = await res.text();
+    // og:image se direct link nikalo
+    let match = html.match(/property="og:image" content="([^"]+)"/) || html.match(/meta content="([^"]+)" property="og:image"/);
+    if (match && match[1]) {
+      console.log("DIRECT PIC FOUND:", match[1]);
+      return match[1];
+    }
+    // backup: twitter image
+    match = html.match(/name="twitter:image" content="([^"]+)"/);
+    if (match) return match[1];
+  } catch (e) {
+    console.log("IBB fetch error:", e.message);
+  }
+  // fallback agar fetch fail ho to direct i.ibb.co try
+  return "https://i.ibb.co/j9hXMSJH/IMG-20250513-WA0000.jpg";
+}
+
+app.get('/', async (req, res) => {
+  const directPic = await getDirectImageFromIBB();
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SHADOW-MD MINI</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000;color:#fff;font-family:Arial;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}.box{background:#1c1c1e;width:100%;max-width:430px;padding:30px 25px;border-radius:22px;text-align:center;border:1px solid #2a2a2a}.logo{width:130px;height:130px;border-radius:50%;border:3px solid #25D366;object-fit:cover;margin-bottom:15px}h2{font-size:27px}.cmd{color:#25D366;font-weight:bold;margin:10px 0 20px}input{width:100%;padding:16px;margin:20px 0 15px;border-radius:12px;border:none;font-size:18px;text-align:center}button{width:100%;padding:16px;background:#25D366;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:bold}#code{margin-top:22px;font-size:34px;font-weight:bold;color:#25D366;letter-spacing:4px}#msg{font-size:12px;color:#888;margin-top:10px}</style></head><body><div class="box"><img class="logo" src="${directPic}" onerror="this.src='https://i.ibb.co/j9hXMSJH/IMG-20250513-WA0000.jpg'" /><h2>SHADOW-MD MINI</h2><p class="cmd">COMMANDS: 77 Loaded</p><p style="color:#aaa;font-size:14px">Enter number with country code</p><input id="num" type="number" value="923263695287" /><button onclick="pair()">Get Pair Code</button><div id="code"></div><div id="msg">WhatsApp > Linked Devices > Link with phone number</div></div><script>async function pair(){const n=document.getElementById("num").value;const codeEl=document.getElementById("code");const msgEl=document.getElementById("msg");codeEl.innerText="Generating...";try{const r=await fetch("/pair?number="+n);const d=await r.json();if(d.code){codeEl.innerText=d.code;msgEl.innerHTML="Code mil gaya!<br><b style='color:#25D366'>Ab WhatsApp kholo > Linked Devices > Link with phone number > Ye code lagao</b><br>WhatsApp par notification aa gaya hoga!"; // Browser Notification if("Notification" in window){if(Notification.permission!=="granted")await Notification.requestPermission();if(Notification.permission==="granted"){new Notification("SHADOW-MD Pair Code",{body:"Code: "+d.code+" - WhatsApp me lagao!",icon:"${directPic}"});}} // Vibration if(navigator.vibrate)navigator.vibrate(200); } else {codeEl.innerText=d.error;}}catch(e){codeEl.innerText="Server Error";}}</script></body></html>`;
   res.send(html);
 });
 
-app.get('/pair', async (req,res)=>{
-  let num = (req.query.number || '').replace(/[^0-9]/g,'');
-  if(!num) return res.json({error:'Number missing'});
-  if(activeSockets[num]){ try{activeSockets[num].end();}catch{} delete activeSockets[num]; }
-  const tempDir = path.join(__dirname,'auth','temp_'+num);
-  if(fs.existsSync(tempDir)) fs.rmSync(tempDir,{recursive:true,force:true});
-  fs.mkdirSync(tempDir,{recursive:true});
-  try{
-    const {state,saveCreds} = await useMultiFileAuthState(tempDir);
+app.get('/pair', async (req, res) => {
+  let num = (req.query.number || '').replace(/[^0-9]/g, '');
+  if (!num) return res.json({ error: 'Number missing' });
+  if (activeSockets[num]) { try { activeSockets[num].end(); } catch {} delete activeSockets[num]; }
+  const tempDir = path.join(__dirname, 'auth', 'temp_' + num);
+  if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+  fs.mkdirSync(tempDir, { recursive: true });
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(tempDir);
     const sock = makeWASocket({
-      auth:{creds:state.creds,keys:makeCacheableSignalKeyStore(state.keys,pino({level:'silent'}))},
-      logger:pino({level:'silent'}),
-      browser:Browsers.macOS('Chrome'),
-      printQRInTerminal:false
+      auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })) },
+      logger: pino({ level: 'silent' }),
+      browser: Browsers.macOS('Chrome'),
+      printQRInTerminal: false
     });
-    activeSockets[num]=sock;
-    sock.ev.on('creds.update',saveCreds);
-    sock.ev.on('connection.update', async (u)=>{
-      if(u.connection==='open'){
-        console.log('PAIRED SUCCESS:',num);
-        const mainDir=path.join(__dirname,'auth','main');
-        if(!fs.existsSync(mainDir)) fs.mkdirSync(mainDir,{recursive:true});
-        fs.readdirSync(tempDir).forEach(f=>{ fs.copyFileSync(path.join(tempDir,f), path.join(mainDir,f)); });
-        console.log('Auth saved, restarting bot...');
-        setTimeout(()=>process.exit(0),2000);
+    activeSockets[num] = sock;
+    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('connection.update', async (u) => {
+      if (u.connection === 'open') {
+        console.log('PAIRED SUCCESS - WHATSAPP NOTIFICATION SENT:', num);
+        const mainDir = path.join(__dirname, 'auth', 'main');
+        if (!fs.existsSync(mainDir)) fs.mkdirSync(mainDir, { recursive: true });
+        fs.readdirSync(tempDir).forEach(f => { fs.copyFileSync(path.join(tempDir, f), path.join(mainDir, f)); });
+        setTimeout(() => process.exit(0), 2000);
       }
     });
-    await new Promise(r=>setTimeout(r,2500));
-    if(sock.authState.creds.registered) return res.json({error:'Already paired'});
+    await new Promise(r => setTimeout(r, 3000));
+    if (sock.authState.creds.registered) return res.json({ error: 'Already paired' });
+    // Ye line WhatsApp par pairing notification bhejti hai
     const code = await sock.requestPairingCode(num);
-    console.log('CODE FOR',num,':',code);
-    setTimeout(()=>{ try{sock.end();}catch{} delete activeSockets[num]; }, 120000);
-    res.json({code});
-  }catch(e){
-    console.log('PAIR ERROR:',e);
-    res.json({error:e.message});
+    console.log('PAIR CODE FOR', num, ':', code, '- WhatsApp ko notification chala gaya!');
+    setTimeout(() => { try { sock.end(); } catch {} delete activeSockets[num]; }, 120000);
+    res.json({ code });
+  } catch (e) {
+    console.log('PAIR ERROR:', e);
+    res.json({ error: 'Failed: ' + e.message });
   }
 });
 
-app.listen(PORT,'0.0.0.0',()=>console.log('WEB Running on '+PORT));
+app.listen(PORT, '0.0.0.0', () => console.log('WEB Running with IBB pic on ' + PORT));
