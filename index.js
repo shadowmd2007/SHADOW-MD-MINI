@@ -88,7 +88,9 @@ async function start() {
       console.log('Connected to WhatsApp');
       try {
         const me = jidNormalizedUser(s.user.id);
-        await s.sendMessage(me, { text: `✅ ${BOT_NAME} connected successfully!\nType .menu to see commands.` });
+        const msg = `✅ *${BOT_NAME}* connected successfully!\n\nType .menu to see all commands.`;
+        if (typeof handlerMod?.sendPic === 'function') await handlerMod.sendPic(s, me, msg);
+        else await s.sendMessage(me, { text: msg });
       } catch (e) { console.log('welcome msg failed:', e.message); }
     }
 
@@ -113,7 +115,7 @@ async function start() {
 
   s.ev.on('messages.upsert', async ({ messages, type }) => {
     if (myGen !== gen || type !== 'notify') return;
-    const fn = handlerMod?.default ?? handlerMod?.handler ?? handlerMod?.handleMessage ?? handlerMod?.handle;
+    const fn = handlerMod?.default ?? handlerMod?.handleMessage;
     if (typeof fn !== 'function') return;
     for (const m of messages) {
       if (!m.message) continue;
