@@ -1,6 +1,6 @@
 import express from 'express';
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 import { fileURLToPath } from 'url';
 import pino from 'pino';
 import { createRequire } from 'module';
@@ -17,72 +17,81 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 let activeSockets = {};
 
-// Tumhara Original Link - Isi se pic ayegi, no changing
-const IBB_PAGE_LINK = "https://ibb.co/j9hXMSJH";
-
-async function getDirectImageFromIBB() {
-  try {
-    const res = await fetch(IBB_PAGE_LINK, { headers: { "User-Agent": "Mozilla/5.0" } });
-    const html = await res.text();
-    // og:image se direct link nikalo
-    let match = html.match(/property="og:image" content="([^"]+)"/) || html.match(/meta content="([^"]+)" property="og:image"/);
-    if (match && match[1]) {
-      console.log("DIRECT PIC FOUND:", match[1]);
-      return match[1];
-    }
-    // backup: twitter image
-    match = html.match(/name="twitter:image" content="([^"]+)"/);
-    if (match) return match[1];
-  } catch (e) {
-    console.log("IBB fetch error:", e.message);
-  }
-  // fallback agar fetch fail ho to direct i.ibb.co try
-  return "https://i.ibb.co/j9hXMSJH/IMG-20250513-WA0000.jpg";
-}
+// ✅ PURE CLEAR - Direct SHADOW Pic - No IBB
+const DIRECT_PIC = "https://i.imgur.com/8Km9tLL.jpeg";
 
 app.get('/', async (req, res) => {
-  const directPic = await getDirectImageFromIBB();
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SHADOW-MD MINI</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000;color:#fff;font-family:Arial;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}.box{background:#1c1c1e;width:100%;max-width:430px;padding:30px 25px;border-radius:22px;text-align:center;border:1px solid #2a2a2a}.logo{width:130px;height:130px;border-radius:50%;border:3px solid #25D366;object-fit:cover;margin-bottom:15px}h2{font-size:27px}.cmd{color:#25D366;font-weight:bold;margin:10px 0 20px}input{width:100%;padding:16px;margin:20px 0 15px;border-radius:12px;border:none;font-size:18px;text-align:center}button{width:100%;padding:16px;background:#25D366;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:bold}#code{margin-top:22px;font-size:34px;font-weight:bold;color:#25D366;letter-spacing:4px}#msg{font-size:12px;color:#888;margin-top:10px}</style></head><body><div class="box"><img class="logo" src="${directPic}" onerror="this.src='https://i.ibb.co/j9hXMSJH/IMG-20250513-WA0000.jpg'" /><h2>SHADOW-MD MINI</h2><p class="cmd">COMMANDS: 77 Loaded</p><p style="color:#aaa;font-size:14px">Enter number with country code</p><input id="num" type="number" value="923263695287" /><button onclick="pair()">Get Pair Code</button><div id="code"></div><div id="msg">WhatsApp > Linked Devices > Link with phone number</div></div><script>async function pair(){const n=document.getElementById("num").value;const codeEl=document.getElementById("code");const msgEl=document.getElementById("msg");codeEl.innerText="Generating...";try{const r=await fetch("/pair?number="+n);const d=await r.json();if(d.code){codeEl.innerText=d.code;msgEl.innerHTML="Code mil gaya!<br><b style='color:#25D366'>Ab WhatsApp kholo > Linked Devices > Link with phone number > Ye code lagao</b><br>WhatsApp par notification aa gaya hoga!"; // Browser Notification if("Notification" in window){if(Notification.permission!=="granted")await Notification.requestPermission();if(Notification.permission==="granted"){new Notification("SHADOW-MD Pair Code",{body:"Code: "+d.code+" - WhatsApp me lagao!",icon:"${directPic}"});}} // Vibration if(navigator.vibrate)navigator.vibrate(200); } else {codeEl.innerText=d.error;}}catch(e){codeEl.innerText="Server Error";}}</script></body></html>`;
-  res.send(html);
+  res.send(`
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHADOW-MD MINI</title>
+<style>body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;display:flex;justify-content:center;align-items:center;min-height:100vh} .box{background:#111;border:1px solid #333;border-radius:20px;padding:25px;width:92%;max-width:380px;text-align:center} .logo{width:130px;height:130px;border-radius:50%;border:3px solid #00ff88;object-fit:cover;margin-bottom:15px} input{width:100%;padding:14px;border-radius:12px;border:1px solid #333;background:#000;color:#fff;text-align:center;font-size:18px;margin:12px 0;outline:none;box-sizing:border-box} button{width:100%;padding:14px;border-radius:12px;border:none;background:#00ff88;color:#000;font-weight:bold;font-size:18px;cursor:pointer} #codeBox{margin-top:14px;font-size:28px;letter-spacing:4px;display:none;background:#000;padding:14px;border-radius:12px;border:2px dashed #00ff88;font-weight:bold}</style>
+</head><body><div class="box">
+<img class="logo" src="${DIRECT_PIC}">
+<h2>SHADOW - MD</h2><p style="color:#00ff88">COMMANDS: 77 Loaded</p>
+<input id="num" type="tel" autocomplete="off" placeholder="92300xxxxxxx" value="">
+<button id="btn">Get Pair Code</button><div id="codeBox"></div>
+<p style="font-size:11px;color:#777;margin-top:12px">WhatsApp > Linked Devices > Link with phone number</p>
+</div>
+<script>
+document.getElementById('btn').onclick=async()=>{
+  let n=document.getElementById('num').value.replace(/[^0-9]/g,'');
+  if(n.length<10) return alert('Number sahi likho');
+  let b=document.getElementById('btn'); b.innerText='Wait 6 sec...'; b.disabled=true;
+  try{
+    let r=await fetch('/pair?number='+n); let d=await r.json();
+    if(d.code){ let x=document.getElementById('codeBox'); x.style.display='block'; x.innerText=d.code; 
+      if(Notification && Notification.permission==='granted'){ new Notification('SHADOW-MD Pair Code', {body:'Code: '+d.code}); }
+      if(navigator.vibrate) navigator.vibrate(200);
+    } else alert(d.error||'Failed');
+  }catch(e){ alert('Server Error, 10 sec baad try karo'); }
+  b.innerText='Get Pair Code'; b.disabled=false;
+}
+if('Notification' in window && Notification.permission!=='granted'){ Notification.requestPermission(); }
+</script></body></html>`);
 });
 
 app.get('/pair', async (req, res) => {
-  let num = (req.query.number || '').replace(/[^0-9]/g, '');
-  if (!num) return res.json({ error: 'Number missing' });
-  if (activeSockets[num]) { try { activeSockets[num].end(); } catch {} delete activeSockets[num]; }
-  const tempDir = path.join(__dirname, 'auth', 'temp_' + num);
-  if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
-  fs.mkdirSync(tempDir, { recursive: true });
-  try {
+  let num = (req.query.number||'').replace(/[^0-9]/g,'');
+  if(!num) return res.json({error:'Number dalo'});
+  const tempDir = path.join(__dirname, 'auth', 'temp_'+num);
+  if(fs.existsSync(tempDir)) fs.rmSync(tempDir,{recursive:true,force:true});
+  fs.mkdirSync(tempDir,{recursive:true});
+  if(activeSockets[num]){ try{ activeSockets[num].end(); }catch{} delete activeSockets[num]; }
+  try{
     const { state, saveCreds } = await useMultiFileAuthState(tempDir);
     const sock = makeWASocket({
-      auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })) },
-      logger: pino({ level: 'silent' }),
+      auth:{ creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({level:'silent'})) },
+      logger: pino({level:'silent'}),
       browser: Browsers.macOS('Chrome'),
-      printQRInTerminal: false
+      printQRInTerminal:false
     });
     activeSockets[num] = sock;
     sock.ev.on('creds.update', saveCreds);
-    sock.ev.on('connection.update', async (u) => {
-      if (u.connection === 'open') {
-        console.log('PAIRED SUCCESS - WHATSAPP NOTIFICATION SENT:', num);
-        const mainDir = path.join(__dirname, 'auth', 'main');
-        if (!fs.existsSync(mainDir)) fs.mkdirSync(mainDir, { recursive: true });
-        fs.readdirSync(tempDir).forEach(f => { fs.copyFileSync(path.join(tempDir, f), path.join(mainDir, f)); });
-        setTimeout(() => process.exit(0), 2000);
-      }
-    });
-    await new Promise(r => setTimeout(r, 3000));
-    if (sock.authState.creds.registered) return res.json({ error: 'Already paired' });
-    // Ye line WhatsApp par pairing notification bhejti hai
-    const code = await sock.requestPairingCode(num);
-    console.log('PAIR CODE FOR', num, ':', code, '- WhatsApp ko notification chala gaya!');
-    setTimeout(() => { try { sock.end(); } catch {} delete activeSockets[num]; }, 120000);
-    res.json({ code });
-  } catch (e) {
-    console.log('PAIR ERROR:', e);
-    res.json({ error: 'Failed: ' + e.message });
+    await new Promise(r=>setTimeout(r,4000));
+    if(!sock.authState.creds.registered){
+      const code = await sock.requestPairingCode(num);
+      console.log('PAIR CODE FOR '+num+': '+code);
+      res.json({code});
+      sock.ev.on('connection.update', async (u)=>{
+        if(u.connection==='open'){
+          console.log('PAIRED SUCCESS '+num);
+          const mainDir = path.join(__dirname, 'auth', 'main');
+          if(!fs.existsSync(mainDir)) fs.mkdirSync(mainDir,{recursive:true});
+          fs.readdirSync(tempDir).forEach(f=>{
+            fs.copyFileSync(path.join(tempDir,f), path.join(mainDir,f));
+          });
+          console.log('Session saved to main');
+          setTimeout(()=>{ process.exit(0); }, 2000);
+        }
+      });
+    } else {
+      res.json({error:'Already paired'});
+    }
+    setTimeout(()=>{ try{ sock.end(); }catch{} delete activeSockets[num]; }, 120000);
+  }catch(e){
+    console.log('PAIR ERROR:', e.message);
+    res.json({error: 'Failed: '+ e.message});
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log('WEB Running with IBB pic on ' + PORT));
+app.listen(PORT, '0.0.0.0', ()=> console.log('WEB Running with direct pic on '+PORT));
