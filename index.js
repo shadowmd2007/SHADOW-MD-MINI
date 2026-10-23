@@ -1,83 +1,42 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const pino = require("pino");
-const { default: makeWASocket, useMultiFileAuthState, Browsers, delay } = require("@whiskeysockets/baileys");
+import express from "express";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import pino from "pino";
+import pkg from "@whiskeysockets/baileys";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const makeWASocket = pkg.default;
+const { useMultiFileAuthState, Browsers, delay } = pkg;
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 const AUTH = "./auth";
 
-function cleanAuth() {
-  try {
-    if (fs.existsSync(AUTH)) {
-      fs.rmSync(AUTH, { recursive: true, force: true });
-      console.log("Auth folder cleaned");
-    }
-  } catch {}
-}
+function cleanAuth(){ try{ if(fs.existsSync(AUTH)) fs.rmSync(AUTH,{recursive:true,force:true}); }catch{} }
 
-app.get("/", async (req, res) => {
+app.get("/", async (req,res)=>{
   const num = req.query.number;
-
-  if (!num) {
-    try {
-      const htmlFile = path.join(__dirname, "index.html");
-      if (fs.existsSync(htmlFile)) {
-        return res.sendFile(htmlFile);
-      }
-    } catch {}
-    return res.send(`
-      <html>
-      <head><title>SHADOW MD</title></head>
-      <body style="font-family:sans-serif;padding:20px">
-        <h1>SHADOW MD</h1>
-        <p>Link your WhatsApp with a pairing code</p>
-        <form method="GET">
-          <input name="number" placeholder="923001234567" style="padding:8px;width:200px"/>
-          <button type="submit" style="padding:8px">Get pairing code</button>
-        </form>
-        <p>Digits only. No +, no leading 0. Example: 923001234567</p>
-        <p>1. Enter number and tap Get pairing code.<br>
-        2. WhatsApp > Settings > Linked devices<br>
-        3. Link a device > Link with phone number instead<br>
-        4. Type the code shown here.</p>
-      </body>
-      </html>
-    `);
+  if(!num){
+    const htmlPath = path.join(__dirname,"index.html");
+    if(fs.existsSync(htmlPath)) return res.sendFile(htmlPath);
+    return res.send(`<h1>SHADOW MD</h1><form><input name="number" placeholder="92300..."/><button>Get pairing code</button></form>`);
   }
-
-  try {
-    let phone = String(num).replace(/[^0-9]/g, "");
-    console.log("Pair request for:", phone);
-    
+  try{
+    let phone = String(num).replace(/[^0-9]/g,"");
     cleanAuth();
     await delay(2000);
-
     const { state, saveCreds } = await useMultiFileAuthState(AUTH);
-    const sock = makeWASocket({
-      auth: state,
-      browser: Browsers.macOS("Safari"),
-      logger: pino({ level: "silent" }),
-      printQRInTerminal: false,
-      syncFullHistory: false
-    });
-
+    const sock = makeWASocket({ auth: state, browser: Browsers.macOS("Safari"), logger: pino({level:"silent"}), printQRInTerminal:false });
     sock.ev.on("creds.update", saveCreds);
     await delay(5000);
-
     let code = await sock.requestPairingCode(phone);
     code = code.match(/.{1,4}/g).join("-");
-    console.log("SUCCESS CODE:", code);
-    return res.json({ code: code });
-
-  } catch (e) {
-    console.log("Pair Failed:", e.message);
-    cleanAuth();
+    return res.json({ code });
+  }catch(e){
     return res.json({ error: e.message });
   }
 });
 
-app.listen(PORT, () => {
-  console.log("SHADOW MD Server running on port", PORT);
-});
+app.listen(PORT, ()=>console.log("LIVE ON",PORT));
