@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+package-lock.json
+.pnp/
+.pnp.js
+
+# Baileys Auth - YE SABSE ZAROORI HAI (Error isi se aa raha tha)
+auth/
+auth_info_baileys/
+auth_info/
+session/
+sessions/
+creds.json
+*.session
+*.session-journal
+.qr/
+baileys_store/
+
+# Secrets
+.env
+.env.local
+
+# Logs & OS
+logs/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+tmp/
+temp/
+.cache/
