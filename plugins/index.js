@@ -1,45 +1,65 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath, pathToFileURL } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-export const commands = new Map();
-
-export async function loadCommands() {
-  const commandsPath = path.join(__dirname, "../commands");
-  
-  console.log("Checking path: " + commandsPath);
-  
-  if (!fs.existsSync(commandsPath)) {
-    console.log("❌ commands folder not found!");
-    return commands;
+// MENU
+export const menu = {
+  command: ["menu","help","list"],
+  run: async (sock, m, {config}) => {
+    const menuText = `
+╭───「 *${config.botName}* 」───
+│ Prefix: ${config.prefix}
+│ Owner: ${config.ownerName}
+│ Commands: 77 Loaded
+│
+├─ *MAIN*
+│ • ${config.prefix}menu
+│ • ${config.prefix}ping
+│ • ${config.prefix}alive
+│ • ${config.prefix}owner
+│ • ${config.prefix}script
+│
+├─ *GROUP*
+│ • ${config.prefix}tagall
+│ • ${config.prefix}hidetag
+│ • ${config.prefix}promote
+│ • ${config.prefix}demote
+│ • ${config.prefix}kick
+│ • ${config.prefix}link
+│ • ${config.prefix}antilink
+│
+├─ *DOWNLOADER*
+│ • ${config.prefix}ytmp3
+│ • ${config.prefix}ytmp4
+│ • ${config.prefix}tiktok
+│ • ${config.prefix}fb
+│ • ${config.prefix}insta
+│
+├─ *TOOLS*
+│ • ${config.prefix}sticker
+│ • ${config.prefix}toimg
+│ • ${config.prefix}calc
+│ • ${config.prefix}weather
+│
+╰─── Powered by SHADOW ───
+`;
+    await sock.sendMessage(m.key.remoteJid, { image: {url: config.menuImage}, caption: menuText }, {quoted: m});
   }
+};
 
-  const files = fs.readdirSync(commandsPath).filter(f => f.endsWith(".js"));
-  console.log(`Found ${files.length} files in commands folder`);
-
-  for (const file of files) {
-    try {
-      const fullPath = path.join(commandsPath, file);
-      const fileUrl = pathToFileURL(fullPath).href;
-      const mod = await import(fileUrl);
-      
-      // Har tarah ka export handle karega
-      const cmd = mod.default || mod;
-      
-      if (cmd && cmd.name) {
-        commands.set(cmd.name.toLowerCase(), cmd);
-        console.log(`+ Loaded: ${cmd.name}`);
-      } else {
-        console.log(`- Skipped ${file} (no name export)`);
-      }
-    } catch (err) {
-      console.log(`- Failed ${file}: ${err.message}`);
-    }
+// PING
+export const ping = {
+  command: ["ping","speed"],
+  run: async (sock, m) => {
+    const start = Date.now();
+    let msg = await sock.sendMessage(m.key.remoteJid, {text: "Pinging..."}, {quoted: m});
+    const end = Date.now();
+    await sock.sendMessage(m.key.remoteJid, {text: `*PONG!*\n${end-start}ms`, edit: msg.key});
   }
-  
-  console.log(`✅ Total Loaded: ${commands.size} commands`);
-  return commands;
-}
+};
+
+// ALIVE
+export const alive = {
+  command: ["alive","bot"],
+  run: async (sock, m, {config}) => {
+    await sock.sendMessage(m.key.remoteJid, {text: `*${config.botName} is Alive!* ⚡\n\nOwner: ${config.ownerName}\nVersion: 3.0.0\nStatus: Online ✅`}, {quoted: m});
+  }
+};
+
+export default menu;
