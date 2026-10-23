@@ -1,76 +1,33 @@
-import { config } from "./config.js";
-import { commands } from "./plugins/index.js";
+import fs from 'fs';
+import path from 'path';
+import config from './config.js';
 
-export async function handleMessage(sock, msg) {
+export default async function handleMessage(sock, m) {
   try {
-    if (!msg.message) return;
-    const remote = msg.key.remoteJid;
-    const isGroup = remote.endsWith("@g.us");
+    if (!m.message) return;
+    const msgType = Object.keys(m.message)[0];
+    const body = m.message.conversation || m.message.extendedTextMessage?.text || m.message.imageMessage?.caption || m.message.videoMessage?.caption || "";
+    if (!body.startsWith(config.prefix)) return;
 
-    const messageType = Object.keys(msg.message)[0];
-    const messageContent = messageType === "conversation"? msg.message.conversation :
-                          messageType === "extendedTextMessage"? msg.message.extendedTextMessage.text : "";
+    const args = body.slice(config.prefix.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+    const text = args.join(" ");
 
-    if (!messageContent) return;
-
-    const prefix = config.prefix || ".";
-    if (!messageContent.startsWith(prefix)) return;
-
-    const parts = messageContent.slice(prefix.length).trim().split(/ +/);
-    const name = parts.shift().toLowerCase();
-    const args = parts;
-
-    if (name === "ping") {
-      const start = Date.now();
-      await sock.sendMessage(remote, { text: "*Pinging...* 🏓" }, { quoted: msg });
-      const speed = Date.now() - start;
-      return await sock.sendMessage(remote, { text: `*┌───⭓ PING ⭓───*\n*│* ⚡ *Speed:* ${speed} ms\n*│* 🚀 *Bot:* ${config.botName} v${config.version}\n*└───────────⭓*` }, { quoted: msg });
-    }
-
-    if (name === "alive") {
-      return await sock.sendMessage(remote, { text: `🟢 *${config.botName} ONLINE*\n👑 Owner: ${config.ownerName}\n⚙️ Version: ${config.version}\n📦 Commands: ${commands.size}` }, { quoted: msg });
-    }
-
-    if (name === "menu") {
-      const order = ["MAIN", "GROUP", "OWNER", "FUN", "MATH", "TOOLS", "UTILITY", "DOWNLOAD", "AI", "SEARCH", "STICKER", "OTHER"];
-      const grouped = new Map(order.map(x => [x, []]));
-      for (const c of commands.values()) {
-        const cat = (c.category || "OTHER").toUpperCase();
-        if (!grouped.has(cat)) grouped.set(cat, []);
-        grouped.get(cat).push(c);
-      }
-      let out = `*┌───⭓ ${config.botName} ⭓───*\n*│* 👑 *OWNER:* ${config.ownerName}\n*│* 🔑 *PREFIX:* ${prefix}\n*│* 🧩 *COMMANDS:* ${commands.size}\n*└───────────────────⭓*\n\n`;
-      for (const [cat, arr] of grouped) {
-        if (!arr.length) continue;
-        arr.sort((a, b) => a.name.localeCompare(b.name));
-        out += `*┌───⭓ ${cat.toLowerCase()} ⭓───*\n`;
-        for (const c of arr) {
-          out += `*│* ⬡.${c.name}\n`;
+    // Load all plugins
+    const pluginDir = path.join(process.cwd(), 'plugins');
+    const files = fs.readdirSync(pluginDir).filter(f => f.endsWith('.js'));
+    
+    for (const file of files) {
+      const plugin = await import(`./plugins/${file}?update=${Date.now()}`);
+      if (plugin.default && plugin.default.command) {
+        const cmds = Array.isArray(plugin.default.command) ? plugin.default.command : [plugin.default.command];
+        if (cmds.includes(command)) {
+          await plugin.default.run(sock, m, { args, text, command, config });
+          break;
         }
-        out += `*└───────────────────⭓*\n\n`;
-      }
-      out += `> *Powered by SHADOW MD*`;
-      try {
-        return await sock.sendMessage(remote, { image: { url: config.imageUrl }, caption: out.trim() }, { quoted: msg });
-      } catch {
-        return await sock.sendMessage(remote, { text: out.trim() }, { quoted: msg });
       }
     }
-
-    if (name === "owner") {
-      return await sock.sendMessage(remote, { text: `👑 *Owner:* ${config.ownerName}\n📞 *Number:* ${config.ownerNumber}` }, { quoted: msg });
-    }
-
-    if (name === "rana") {
-      return await sock.sendMessage(remote, { text: `❤️ RANA FURQAN RAJPUT` }, { quoted: msg });
-    }
-
-    const command = commands.get(name) || [...commands.values()].find(c => c.aliases && c.aliases.includes(name));
-    if (!command) return;
-
-    await command.run({ sock, remote, msg, args, commands, config, prefix, isGroup });
-
   } catch (e) {
-    console.error("Handler Error:", e);
+    console.log("Handler Error:", e);
   }
 }
