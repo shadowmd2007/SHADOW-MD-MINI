@@ -16,13 +16,11 @@ const AUTH = "./auth";
 
 function cleanAuth(){ try{ if(fs.existsSync(AUTH)) fs.rmSync(AUTH,{recursive:true,force:true}); }catch{} }
 
+app.use(express.static(__dirname));
+
 app.get("/", async (req,res)=>{
   const num = req.query.number;
-  if(!num){
-    const htmlPath = path.join(__dirname,"index.html");
-    if(fs.existsSync(htmlPath)) return res.sendFile(htmlPath);
-    return res.send(`<h1>SHADOW MD</h1><form><input name="number" placeholder="92300..."/><button>Get pairing code</button></form>`);
-  }
+  if(!num) return res.sendFile(path.join(__dirname,"index.html"));
   try{
     let phone = String(num).replace(/[^0-9]/g,"");
     cleanAuth();
@@ -34,9 +32,6 @@ app.get("/", async (req,res)=>{
     let code = await sock.requestPairingCode(phone);
     code = code.match(/.{1,4}/g).join("-");
     return res.json({ code });
-  }catch(e){
-    return res.json({ error: e.message });
-  }
+  }catch(e){ cleanAuth(); return res.json({ error: e.message }); }
 });
-
 app.listen(PORT, ()=>console.log("LIVE ON",PORT));
