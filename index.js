@@ -1,89 +1,66 @@
-import express from 'express';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import pkg from '@whiskeysockets/baileys';
-import pino from 'pino';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const makeWASocket = pkg.default || pkg.makeWASocket || pkg;
-const { useMultiFileAuthState, Browsers, delay, makeCacheableSignalKeyStore } = pkg;
+const express = require("express");
+const fs = require("fs");
+const pino = require("pino");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const AUTH = './auth';
+const AUTH = "./auth";
 
-function cleanAuth() {
-  try {
-    if (fs.existsSync(AUTH)) {
-      fs.rmSync(AUTH, { recursive: true, force: true });
-      console.log("Auth cleaned");
-    }
-  } catch (e) {}
+function cleanAuth(){
+  try{ if(fs.existsSync(AUTH)) fs.rmSync(AUTH,{recursive:true,force:true}); }catch{}
 }
 
-app.use(express.json());
-
-app.get('/', async (req, res) => {
+app.get("/", async (req,res)=>{
   const num = req.query.number;
-  
-  if (!num) {
-    const htmlPath = path.join(__dirname, 'index.html');
-    if (fs.existsSync(htmlPath)) {
-      return res.sendFile(htmlPath);
-    } else {
-      return res.send(`
-        <h2>SHADOW MD MINI</h2>
-        <form method="get">
-          <input name="number" placeholder="923xxxxxxxxx" />
-          <button>Get Pair Code</button>
-        </form>
-      `);
-    }
+  if(!num){
+    try{
+      if(fs.existsSync(path.join(__dirname,"index.html"))) return res.sendFile(path.join(__dirname,"index.html"));
+    }catch{}
+    return res.send(`<h2>SHADOW-MD-MINI-4</h2><form><input name="number" placeholder="923xxxxxxxxx"/><button>Get Pair Code</button></form>`);
   }
 
-  let phone = num.replace(/[^0-9]/g, "");
-  console.log("Pair request for:", phone);
-
+  let phone = (num+"").replace(/[^0-9]/g,"");
+  console.log("Request for",phone);
   cleanAuth();
-  await delay(2000);
 
-  try {
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH);
-    
-    const sock = makeWASocket({
-      auth: {
-        creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, pino({level:"silent"}))
-      },
-      browser: Browsers.macOS("Safari"),
-      logger: pino({ level: "silent" }),
-      printQRInTerminal: false,
-      syncFullHistory: false
-    });
+  for(let attempt=1; attempt<=3; attempt++){
+    try{
+      console.log(`Attempt ${attempt} for ${phone}`);
+      const baileys = require("@whiskeysockets/baileys");
+      const makeWASocket = baileys.default;
+      const { useMultiFileAuthState, Browsers, delay, fetchLatestBaileysVersion } = baileys;
 
-    sock.ev.on("creds.update", saveCreds);
+      const { version } = await fetchLatestBaileysVersion();
+      const { state, saveCreds } = await useMultiFileAuthState(AUTH);
 
-    await delay(3500);
+      const sock = makeWASocket({
+        version,
+        auth: state,
+        browser: Browsers.macOS("Safari"),
+        logger: pino({level:"silent"}),
+        printQRInTerminal: false,
+        syncFullHistory: false,
+        markOnlineOnConnect: false
+      });
+      sock.ev.on("creds.update", saveCreds);
 
-    if (!sock.authState.creds.registered) {
+      await delay(6000);
+
       let code = await sock.requestPairingCode(phone);
       code = code.match(/.{1,4}/g).join("-");
-      console.log("CODE GENERATED:", code);
-      return res.json({ code: code, message: "Code ko WhatsApp me dalo - Settings > Linked Devices" });
-    } else {
-      return res.json({ error: "Already registered, auth delete karo" });
-    }
+      console.log("SUCCESS CODE:",code," Attempt:",attempt);
+      return res.json({ code: code });
 
-  } catch (e) {
-    console.log("PAIR FAIL:", e.message);
-    cleanAuth();
-    return res.json({ error: e.message + " - 15 sec baad retry karo" });
+    }catch(e){
+      console.log(`Attempt ${attempt} failed:`, e.message);
+      cleanAuth();
+      if(attempt === 3){
+        return res.json({ error: "Connection Closed - 15 sec baad retry karo. Render IP busy hai, 2-3 bar try karo, ho jayega!" });
+      }
+      await new Promise(r=>setTimeout(r,4000));
+    }
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`LIVE ON PORT ${PORT}`);
-});
+app.listen(PORT, ()=>console.log("Live on",PORT));
