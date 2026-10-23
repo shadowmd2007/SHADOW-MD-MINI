@@ -14,29 +14,41 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const AUTH = "./auth";
 
-function cleanAuth(){ try{ if(fs.existsSync(AUTH)) fs.rmSync(AUTH,{recursive:true,force:true}); }catch{} }
+function cleanAuth(){ 
+  try{ if(fs.existsSync(AUTH)) fs.rmSync(AUTH,{recursive:true,force:true}); }catch(e){}
+}
 
 app.use(express.static(__dirname));
 
 app.get("/", async (req, res) => {
   const num = req.query.number;
   if (!num) return res.sendFile(path.join(__dirname, "index.html"));
+  
+  res.setHeader('Content-Type','application/json');
   try {
     let phone = String(num).replace(/[^0-9]/g,"");
+    console.log("Trying for:", phone);
     cleanAuth();
-    await delay(1000);
+    await delay(2000);
     const { state, saveCreds } = await useMultiFileAuthState(AUTH);
-    const sock = makeWASocket({ auth: state, browser: Browsers.macOS("Safari"), logger: pino({level:"silent"}), printQRInTerminal:false });
+    const sock = makeWASocket({
+      auth: state,
+      browser: Browsers.macOS("Safari"),
+      logger: pino({ level: "silent" }),
+      printQRInTerminal: false,
+      markOnlineOnConnect: false
+    });
     sock.ev.on("creds.update", saveCreds);
-    await delay(8000);
+    await delay(6000);
     let code = await sock.requestPairingCode(phone);
     code = code.match(/.{1,4}/g).join("-");
-    console.log("CODE:",code);
+    console.log("SUCCESS CODE:", code);
     return res.json({ code });
   } catch (e) {
-    console.log(e);
+    console.error("ERROR:", e.message);
     cleanAuth();
-    return res.json({ error: "Try again after 30 sec: " + e.message });
+    return res.json({ error: e.message });
   }
 });
-app.listen(PORT, ()=>console.log("LIVE ON",PORT));
+
+app.listen(PORT, () => console.log("SHADOW MD LIVE ON", PORT));
