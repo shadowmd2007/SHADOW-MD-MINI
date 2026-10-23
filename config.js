@@ -9,7 +9,7 @@ export const config = {
   channelLink: "https://whatsapp.com/channel/0029VbCiT0g8vd1P3dJZqm2J",
   groupName: "RANA FURQAN",
   groupLink: "https://chat.whatsapp.com/FGW9EITcLIg2obBhZkkVTn?s=cl&p=a&mlu=4&ilr=4",
-  imageUrl: "https://i.ibb.co/LXZmrwt7/aac9612d34de.jpg",
+  imageUrl: "https://i.imgur.com/8Km9tLL.jpeg",
   prefix: ".",
   mode: "public",
   version: "2.0.0",
