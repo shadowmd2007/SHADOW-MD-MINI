@@ -51,12 +51,20 @@ async function startBot(){
       setTimeout(startBot, 3000);
     }
   });
-  // YAHI MAIN FIX HAI
+  
   sock.ev.on('messages.upsert', async (m)=>{
     try{
       const { onMessage } = await import('./handler.js');
       await onMessage(sock, m);
     }catch(e){ console.log('Msg error:', e.message); }
+  });
+
+  // YAHI FIX HAI - YE LINE TUMHARI FILE ME MISSING THI
+  sock.ev.on('messages.update', async (updates)=>{
+    try{
+      const { onDelete } = await import('./handler.js');
+      await onDelete(sock, updates);
+    }catch(e){ console.log('Delete error:', e.message); }
   });
 }
 startBot();
