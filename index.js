@@ -6,7 +6,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pino from 'pino';
 import config from './config.js';
-import { loadBaileys } from './lib/baileys.js';
 import { loadCommands, listCommands, loadErrors, commands } from './plugins/index.js';
 import { rememberMessage, getStoredMessage, handleRevoke } from './lib/store.js';
 import handleMessage from './handler.js';
@@ -15,6 +14,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_DIR = path.resolve(config.authDir);
 const PORT = process.env.PORT || config.port;
 const logger = pino({ level: 'silent' });
+// Loads Baileys in a way that works for both the CommonJS (6.x) and ESM (7.x) builds.
+let baileysCache;
+async function loadBaileys() {
+  if (baileysCache) return baileysCache;
+  const ns = await import('@whiskeysockets/baileys');
+  const d = ns.default;
+  const pick = (k) => ns[k] ?? d?.[k];
+  baileysCache = {
+    makeWASocket: typeof d === 'function' ? d : (d?.default ?? ns.makeWASocket),
+    useMultiFileAuthState: pick('useMultiFileAuthState'),
+    makeCacheableSignalKeyStore: pick('makeCacheableSignalKeyStore'),
+    fetchLatestBaileysVersion: pick('fetchLatestBaileysVersion'),
+    Browsers: pick('Browsers'),
+    DisconnectReason: pick('DisconnectReason'),
+  };
+  if (typeof baileysCache.makeWASocket !== 'function') throw new Error('Baileys makeWASocket not found - run npm install');
+  return baileysCache;
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 process.on('unhandledRejection', (e) => console.log('unhandledRejection:', e?.message || e));
