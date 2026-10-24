@@ -1,36 +1,36 @@
-const fs = require('fs');
-if (!fs.existsSync('./data')) fs.mkdirSync('./data',{recursive:true});
-const DB = './data/antidelete.json';
-if(!fs.existsSync(DB)) fs.writeFileSync(DB, JSON.stringify({}));
-
 cmd({
   pattern: "antidelete",
-  alias: ["ad"],
   desc: "Antidelete on/off",
   category: "group",
-  react: "🗑️",
   filename: __filename
 }, async (m, match) => {
   try {
-    let db = JSON.parse(fs.readFileSync(DB));
-    let arg = (match || "").toLowerCase().trim();
+    const fs = require('fs');
+    let path = './data/antidelete.json';
+    if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+    if (!fs.existsSync(path)) fs.writeFileSync(path, '{}');
     
-    if(arg === "on" || arg === "allon"){
+    let db = JSON.parse(fs.readFileSync(path));
+    let txt = (match || "").toLowerCase();
+    
+    if(txt === "on"){
       db[m.chat] = true;
-      db.GLOBAL = true;
-      fs.writeFileSync(DB, JSON.stringify(db, null, 2));
-      return await m.reply("✅ *ANTIDELETE ALL ON - Har Jagah!*");
+      fs.writeFileSync(path, JSON.stringify(db));
+      return m.reply("✅ Antidelete ON");
     }
-    if(arg === "off" || arg === "alloff"){
+    if(txt === "off"){
       delete db[m.chat];
-      db.GLOBAL = false;
-      fs.writeFileSync(DB, JSON.stringify(db, null, 2));
-      return await m.reply("❌ *ANTIDELETE OFF*");
+      fs.writeFileSync(path, JSON.stringify(db));
+      return m.reply("❌ Antidelete OFF");
+    }
+    if(txt === "allon"){
+      fs.writeFileSync(path, JSON.stringify({GLOBAL:true}));
+      return m.reply("✅ Antidelete ALL ON - Har jagah");
     }
     
-    let status = db[m.chat] || db.GLOBAL ? "ON ✅" : "OFF ❌";
-    return await m.reply(`*ANTIDELETE*\nStatus: ${status}\n\n.antidelete allon - Har jagah ON\n.antidelete alloff - OFF`);
+    let on = db[m.chat] || db.GLOBAL ? "ON ✅" : "OFF ❌";
+    return m.reply(`Status: ${on}\n.antidelete on\n.antidelete allon\n.antidelete off`);
   } catch(e){
-    return await m.reply("Error: "+e.message);
+    return m.reply("Error: "+e.message);
   }
 });
