@@ -1,157 +1,46 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SHADOW MD MINI</title>
+<title>SHADOW MD</title>
 <style>
-  :root { --bg:#0e1116; --card:#171b22; --line:#262c36; --text:#e8ecf2; --mute:#8b95a5; --accent:#25d366; --bad:#ff6b6b; }
-  @media (prefers-color-scheme: light) { :root { --bg:#f4f6f8; --card:#fff; --line:#dde2e8; --text:#161a20; --mute:#5d6877; --accent:#128c4a; --bad:#c62828; } }
+  :root { --bg:#f4f5f7; --card:#fff; --text:#16181d; --muted:#6b7280; --accent:#128c7e; --border:#e2e5ea; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0e1116; --card:#171b22; --text:#eef0f4; --muted:#9aa3b2; --border:#2a303a; } }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
-  main { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
-  h1 { font-size:1.5rem; margin:0; }
-  h2 { font-size:1.05rem; margin:0 0 10px; }
-  header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
-  .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:99px; border:1px solid var(--line); font-size:.85rem; color:var(--mute); }
-  .dot { width:9px; height:9px; border-radius:50%; background:var(--mute); }
-  .pill.ok .dot { background:var(--accent); } .pill.ok { color:var(--text); }
-  .pill.bad .dot { background:var(--bad); }
-  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px; }
-  form { display:flex; gap:8px; flex-wrap:wrap; }
-  input { flex:1 1 200px; min-width:0; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; }
-  button { padding:11px 18px; border:0; border-radius:10px; background:var(--accent); color:#06210f; font:inherit; font-weight:600; cursor:pointer; }
-  button:disabled { opacity:.6; cursor:wait; }
-  .code { font:700 1.9rem/1.2 ui-monospace,Menlo,Consolas,monospace; letter-spacing:.12em; margin:12px 0 2px; color:var(--accent); }
-  .hint { color:var(--mute); font-size:.9rem; margin:6px 0 0; }
-  .err { color:var(--bad); }
-  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0; }
-  .chip { padding:5px 12px; border-radius:99px; border:1px solid var(--line); background:transparent; color:var(--mute); font-size:.85rem; font-weight:500; }
-  .chip.on { background:var(--accent); color:#06210f; border-color:var(--accent); }
-  .cmd { display:grid; grid-template-columns:minmax(90px,150px) 1fr; gap:4px 12px; padding:9px 0; border-top:1px solid var(--line); }
-  .cmd b { font:600 .95rem ui-monospace,Menlo,Consolas,monospace; word-break:break-all; }
-  .cmd span { color:var(--mute); font-size:.92rem; }
-  .tag { font-size:.7rem; border:1px solid var(--line); border-radius:6px; padding:0 6px; margin-left:6px; color:var(--mute); }
-  #api-status { font-weight:600; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:16px; }
+  .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  p { color:var(--muted); margin:0 0 18px; font-size:14px; }
+  input,button { width:100%; padding:12px 14px; font-size:16px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text); }
+  button { margin-top:10px; background:var(--accent); color:#fff; border:0; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.6; }
+  #out { margin-top:16px; text-align:center; font-size:30px; letter-spacing:3px; font-weight:700; word-break:break-all; }
+  #msg { margin-top:8px; font-size:13px; color:var(--muted); text-align:center; }
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>SHADOW MD MINI</h1>
-    <span class="pill" id="wa"><span class="dot"></span><span id="wa-text">checking...</span></span>
-  </header>
-
-  <section>
-    <h2>Link WhatsApp</h2>
-    <form id="pair-form">
-      <input id="number" inputmode="numeric" autocomplete="tel" placeholder="923001234567 (country code ke saath, + ke baghair)" required>
-      <button id="pair-btn">Get code</button>
-    </form>
-    <div class="code" id="code" hidden></div>
-    <p class="hint" id="pair-msg">WhatsApp &gt; Linked devices &gt; Link with phone number, phir yeh code daalo.</p>
-  </section>
-
-  <section>
-    <h2>Commands</h2>
-    <div id="api-status">Loading commands...</div>
-    <input id="search" type="search" placeholder="Search commands..." style="width:100%;margin-top:10px" hidden>
-    <div class="chips" id="chips"></div>
-    <div id="api-commands"></div>
-  </section>
-</main>
-
+<div class="card">
+  <h1>SHADOW MD</h1>
+  <p>Apna WhatsApp number (country code ke sath) likho aur pairing code lo. Link hone par SESSION_ID usi number par aa jayegi.</p>
+  <input id="num" inputmode="numeric" placeholder="923001234567">
+  <button id="btn">Get Pairing Code</button>
+  <div id="out"></div>
+  <div id="msg"></div>
+</div>
 <script>
-const $ = (id) => document.getElementById(id);
-const SNAPSHOT = [{"name":"8ball","command":".8ball","aliases":[],"category":"FUN","description":"Answer a yes/no question.","ownerOnly":false,"groupOnly":false},{"name":"choose","command":".choose","aliases":[],"category":"FUN","description":"Choose one option.","ownerOnly":false,"groupOnly":false},{"name":"coin","command":".coin","aliases":["flip"],"category":"FUN","description":"Flip a coin.","ownerOnly":false,"groupOnly":false},{"name":"coinflip","command":".coinflip","aliases":[],"category":"FUN","description":"Flip a virtual coin.","ownerOnly":false,"groupOnly":false},{"name":"compliment","command":".compliment","aliases":[],"category":"FUN","description":"Send a positive compliment (online API).","ownerOnly":false,"groupOnly":false},{"name":"dare","command":".dare","aliases":[],"category":"FUN","description":"Get a harmless dare (online API).","ownerOnly":false,"groupOnly":false},{"name":"dice","command":".dice","aliases":["roll"],"category":"FUN","description":"Roll a six-sided die.","ownerOnly":false,"groupOnly":false},{"name":"emojimix","command":".emojimix","aliases":[],"category":"FUN","description":"Mix two emojis into one picture (online API).","ownerOnly":false,"groupOnly":false},{"name":"fact","command":".fact","aliases":[],"category":"FUN","description":"Send a random fact (online API).","ownerOnly":false,"groupOnly":false},{"name":"hug","command":".hug","aliases":[],"category":"FUN","description":"Send a virtual hug.","ownerOnly":false,"groupOnly":false},{"name":"joke","command":".joke","aliases":[],"category":"FUN","description":"Send a clean joke (online API).","ownerOnly":false,"groupOnly":false},{"name":"kiss","command":".kiss","aliases":[],"category":"FUN","description":"Send a playful kiss.","ownerOnly":false,"groupOnly":false},{"name":"love","command":".love","aliases":[],"category":"FUN","description":"Calculate a playful love score.","ownerOnly":false,"groupOnly":false},{"name":"pickup","command":".pickup","aliases":[],"category":"FUN","description":"Send a pickup line.","ownerOnly":false,"groupOnly":false},{"name":"quote","command":".quote","aliases":[],"category":"FUN","description":"Get a motivational quote (online API).","ownerOnly":false,"groupOnly":false},{"name":"random","command":".random","aliases":[],"category":"FUN","description":"Random number: .random 100","ownerOnly":false,"groupOnly":false},{"name":"rate","command":".rate","aliases":[],"category":"FUN","description":"Rate anything out of 100.","ownerOnly":false,"groupOnly":false},{"name":"roast","command":".roast","aliases":[],"category":"FUN","description":"Send a light roast.","ownerOnly":false,"groupOnly":false},{"name":"rps","command":".rps","aliases":[],"category":"FUN","description":"Play rock paper scissors.","ownerOnly":false,"groupOnly":false},{"name":"ship","command":".ship","aliases":[],"category":"FUN","description":"Create a playful compatibility score.","ownerOnly":false,"groupOnly":false},{"name":"slap","command":".slap","aliases":[],"category":"FUN","description":"Playful slap command.","ownerOnly":false,"groupOnly":false},{"name":"truth","command":".truth","aliases":[],"category":"FUN","description":"Get a truth question (online API).","ownerOnly":false,"groupOnly":false},{"name":"add","command":".add","aliases":[],"category":"GROUP","description":"Add a member by mention or international number.","ownerOnly":false,"groupOnly":true},{"name":"admins","command":".admins","aliases":["listadmins"],"category":"GROUP","description":"List group admins.","ownerOnly":false,"groupOnly":true},{"name":"announce","command":".announce","aliases":[],"category":"GROUP","description":"Send an admin announcement.","ownerOnly":false,"groupOnly":true},{"name":"demote","command":".demote","aliases":[],"category":"GROUP","description":"Demote mentioned admins.","ownerOnly":false,"groupOnly":true},{"name":"ginfo","command":".ginfo","aliases":["groupinfo","gdesc"],"category":"GROUP","description":"Show group information.","ownerOnly":false,"groupOnly":true},{"name":"groupid","command":".groupid","aliases":[],"category":"GROUP","description":"Show group JID.","ownerOnly":false,"groupOnly":true},{"name":"hidetag","command":".hidetag","aliases":[],"category":"GROUP","description":"Mention all members without listing names.","ownerOnly":false,"groupOnly":true},{"name":"kick","command":".kick","aliases":["remove"],"category":"GROUP","description":"Remove mentioned members.","ownerOnly":false,"groupOnly":true},{"name":"link","command":".link","aliases":["grouplink"],"category":"GROUP","description":"Get the group invite link.","ownerOnly":false,"groupOnly":true},{"name":"lock","command":".lock","aliases":[],"category":"GROUP","description":"Lock group settings to admins.","ownerOnly":false,"groupOnly":true},{"name":"members","command":".members","aliases":[],"category":"GROUP","description":"Show member count.","ownerOnly":false,"groupOnly":true},{"name":"mute","command":".mute","aliases":["close"],"category":"GROUP","description":"Close group messaging to non-admins.","ownerOnly":false,"groupOnly":true},{"name":"promote","command":".promote","aliases":[],"category":"GROUP","description":"Promote mentioned members.","ownerOnly":false,"groupOnly":true},{"name":"rules","command":".rules","aliases":[],"category":"GROUP","description":"Show basic group rules.","ownerOnly":false,"groupOnly":true},{"name":"tagall","command":".tagall","aliases":["tagadmins","tag","totag"],"category":"GROUP","description":"Mention all group members.","ownerOnly":false,"groupOnly":true},{"name":"unlock","command":".unlock","aliases":[],"category":"GROUP","description":"Unlock group settings for members.","ownerOnly":false,"groupOnly":true},{"name":"unmute","command":".unmute","aliases":["open"],"category":"GROUP","description":"Allow all members to message.","ownerOnly":false,"groupOnly":true},{"name":"alive","command":".alive","aliases":["ass"],"category":"MAIN","description":"Show bot status.","ownerOnly":false,"groupOnly":false},{"name":"botinfo","command":".botinfo","aliases":["info"],"category":"MAIN","description":"Show bot configuration summary.","ownerOnly":false,"groupOnly":false},{"name":"channel","command":".channel","aliases":[],"category":"MAIN","description":"Show WhatsApp channel.","ownerOnly":false,"groupOnly":false},{"name":"echo","command":".echo","aliases":["say"],"category":"MAIN","description":"Repeat your text.","ownerOnly":false,"groupOnly":false},{"name":"furqan","command":".furqan","aliases":[],"category":"MAIN","description":"About the owner.","ownerOnly":false,"groupOnly":false},{"name":"group","command":".group","aliases":["gp"],"category":"MAIN","description":"Show official group link.","ownerOnly":false,"groupOnly":false},{"name":"help","command":".help","aliases":["tools"],"category":"MAIN","description":"Show bot instructions and usage.","ownerOnly":false,"groupOnly":false},{"name":"menu","command":".menu","aliases":["allmenu","mainmenu","commands","list"],"category":"MAIN","description":"Show all commands.","ownerOnly":false,"groupOnly":false},{"name":"owner","command":".owner","aliases":[],"category":"MAIN","description":"Show owner contact.","ownerOnly":false,"groupOnly":false},{"name":"ping","command":".ping","aliases":["test"],"category":"MAIN","description":"Check bot speed","ownerOnly":false,"groupOnly":false},{"name":"rana","command":".rana","aliases":[],"category":"MAIN","description":"About the owner.","ownerOnly":false,"groupOnly":false},{"name":"repo","command":".repo","aliases":[],"category":"MAIN","description":"Show repository link.","ownerOnly":false,"groupOnly":false},{"name":"runtime","command":".runtime","aliases":["uptime"],"category":"MAIN","description":"Show process uptime.","ownerOnly":false,"groupOnly":false},{"name":"speed","command":".speed","aliases":[],"category":"MAIN","description":"Measure command response latency.","ownerOnly":false,"groupOnly":false},{"name":"status","command":".status","aliases":[],"category":"MAIN","description":"Show detailed bot status.","ownerOnly":false,"groupOnly":false},{"name":"avg","command":".avg","aliases":[],"category":"MATH","description":"Average numbers.","ownerOnly":false,"groupOnly":false},{"name":"calc","command":".calc","aliases":["math"],"category":"MATH","description":"Calculate a safe arithmetic expression.","ownerOnly":false,"groupOnly":false},{"name":"divide","command":".divide","aliases":[],"category":"MATH","description":"Divide numbers.","ownerOnly":false,"groupOnly":false},{"name":"max","command":".max","aliases":[],"category":"MATH","description":"Find maximum.","ownerOnly":false,"groupOnly":false},{"name":"min","command":".min","aliases":[],"category":"MATH","description":"Find minimum.","ownerOnly":false,"groupOnly":false},{"name":"minus","command":".minus","aliases":[],"category":"MATH","description":"Subtract numbers.","ownerOnly":false,"groupOnly":false},{"name":"multiply","command":".multiply","aliases":[],"category":"MATH","description":"Multiply numbers.","ownerOnly":false,"groupOnly":false},{"name":"pct","command":".pct","aliases":[],"category":"MATH","description":"Calculate a percentage.","ownerOnly":false,"groupOnly":false},{"name":"plus","command":".plus","aliases":[],"category":"MATH","description":"Add numbers.","ownerOnly":false,"groupOnly":false},{"name":"power","command":".power","aliases":[],"category":"MATH","description":"Raise a number to a power.","ownerOnly":false,"groupOnly":false},{"name":"round","command":".round","aliases":[],"category":"MATH","description":"Round a number.","ownerOnly":false,"groupOnly":false},{"name":"sqrt","command":".sqrt","aliases":[],"category":"MATH","description":"Square root.","ownerOnly":false,"groupOnly":false},{"name":"antidelete","command":".antidelete","aliases":["ad"],"category":"OWNER","description":"Bring back deleted messages: .antidelete on | allon | off","ownerOnly":true,"groupOnly":false},{"name":"block","command":".block","aliases":[],"category":"OWNER","description":"Block a user.","ownerOnly":true,"groupOnly":false},{"name":"leave","command":".leave","aliases":[],"category":"OWNER","description":"Make the bot leave the current group.","ownerOnly":true,"groupOnly":true},{"name":"mode","command":".mode","aliases":[],"category":"OWNER","description":"Switch bot mode: public/private.","ownerOnly":true,"groupOnly":false},{"name":"prefix","command":".prefix","aliases":[],"category":"OWNER","description":"Change the command prefix.","ownerOnly":true,"groupOnly":false},{"name":"restart","command":".restart","aliases":[],"category":"OWNER","description":"Restart the Node process.","ownerOnly":true,"groupOnly":false},{"name":"setprefix","command":".setprefix","aliases":[],"category":"OWNER","description":"Change the runtime command prefix.","ownerOnly":true,"groupOnly":false},{"name":"unblock","command":".unblock","aliases":[],"category":"OWNER","description":"Unblock a user.","ownerOnly":true,"groupOnly":false},{"name":"clap","command":".clap","aliases":[],"category":"TEXT","description":"Put 👏 between words.","ownerOnly":false,"groupOnly":false},{"name":"mock","command":".mock","aliases":[],"category":"TEXT","description":"MoCk tExT.","ownerOnly":false,"groupOnly":false},{"name":"repeat","command":".repeat","aliases":[],"category":"TEXT","description":"Repeat text: .repeat 3 hi","ownerOnly":false,"groupOnly":false},{"name":"title","command":".title","aliases":[],"category":"TEXT","description":"Convert text to Title Case.","ownerOnly":false,"groupOnly":false},{"name":"base64","command":".base64","aliases":[],"category":"TOOLS","description":"Encode text as Base64.","ownerOnly":false,"groupOnly":false},{"name":"base64d","command":".base64d","aliases":["b64d"],"category":"TOOLS","description":"Decode Base64 text.","ownerOnly":false,"groupOnly":false},{"name":"base64e","command":".base64e","aliases":["b64e"],"category":"TOOLS","description":"Encode text to Base64.","ownerOnly":false,"groupOnly":false},{"name":"binary","command":".binary","aliases":[],"category":"TOOLS","description":"Convert text to binary.","ownerOnly":false,"groupOnly":false},{"name":"count","command":".count","aliases":[],"category":"TOOLS","description":"Count characters and words.","ownerOnly":false,"groupOnly":false},{"name":"genpass","command":".genpass","aliases":["password"],"category":"TOOLS","description":"Generate a strong password.","ownerOnly":false,"groupOnly":false},{"name":"id","command":".id","aliases":["jid","chatid"],"category":"TOOLS","description":"Show current chat JID.","ownerOnly":false,"groupOnly":false},{"name":"lower","command":".lower","aliases":[],"category":"TOOLS","description":"Convert text to lowercase.","ownerOnly":false,"groupOnly":false},{"name":"morse","command":".morse","aliases":[],"category":"TOOLS","description":"Encode text as Morse code.","ownerOnly":false,"groupOnly":false},{"name":"reverse","command":".reverse","aliases":[],"category":"TOOLS","description":"Reverse text.","ownerOnly":false,"groupOnly":false},{"name":"unbase64","command":".unbase64","aliases":[],"category":"TOOLS","description":"Decode Base64.","ownerOnly":false,"groupOnly":false},{"name":"unbinary","command":".unbinary","aliases":[],"category":"TOOLS","description":"Convert binary to text.","ownerOnly":false,"groupOnly":false},{"name":"upper","command":".upper","aliases":[],"category":"TOOLS","description":"Convert text to uppercase.","ownerOnly":false,"groupOnly":false},{"name":"url","command":".url","aliases":[],"category":"TOOLS","description":"Show official links.","ownerOnly":false,"groupOnly":false},{"name":"uuid","command":".uuid","aliases":[],"category":"TOOLS","description":"Generate a UUID.","ownerOnly":false,"groupOnly":false},{"name":"whoami","command":".whoami","aliases":[],"category":"TOOLS","description":"Show your WhatsApp JID.","ownerOnly":false,"groupOnly":false},{"name":"date","command":".date","aliases":[],"category":"UTILITY","description":"Show current date.","ownerOnly":false,"groupOnly":false},{"name":"time","command":".time","aliases":[],"category":"UTILITY","description":"Show Pakistan time.","ownerOnly":false,"groupOnly":false},{"name":"week","command":".week","aliases":[],"category":"UTILITY","description":"Show ISO week number.","ownerOnly":false,"groupOnly":false},{"name":"year","command":".year","aliases":[],"category":"UTILITY","description":"Show current year.","ownerOnly":false,"groupOnly":false}];
-let all = [], category = "ALL";
-
-async function loadCommands() {
-  const status = $("api-status");
-  try {
-    const response = await fetch("/api/commands");
-    if (!response.ok) throw new Error("API error: " + response.status);
-    const data = await response.json();
-    all = Array.isArray(data) ? data : data.commands || [];
-    status.textContent = "Total commands: " + all.length;
-    $("search").hidden = false;
-    buildChips(data.categories || [...new Set(all.map((c) => c.category))]);
-    render();
-  } catch (error) {
-    all = SNAPSHOT;
-    status.textContent = "Total commands: " + all.length + " (offline list - server chal nahi raha: " + error.message + ")";
-    $("search").hidden = false;
-    buildChips([...new Set(all.map((c) => c.category))]);
-    render();
-  }
-}
-
-function buildChips(cats) {
-  const box = $("chips");
-  box.replaceChildren();
-  ["ALL", ...cats].forEach((c) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "chip" + (c === category ? " on" : "");
-    b.textContent = c === "ALL" ? "All" : c.charAt(0) + c.slice(1).toLowerCase();
-    b.onclick = () => { category = c; buildChips(cats); render(); };
-    box.appendChild(b);
-  });
-}
-
-function render() {
-  const q = $("search").value.trim().toLowerCase();
-  const out = $("api-commands");
-  out.replaceChildren();
-  const rows = all.filter((c) =>
-    (category === "ALL" || c.category === category) &&
-    (!q || c.name.includes(q) || (c.description || "").toLowerCase().includes(q) || (c.aliases || []).some((a) => a.includes(q))));
-  rows.forEach((c) => {
-    const row = document.createElement("div");
-    row.className = "cmd";
-    const name = document.createElement("b");
-    name.textContent = c.command || c.name;
-    const info = document.createElement("span");
-    info.textContent = c.description || c.category;
-    if (c.aliases && c.aliases.length) info.textContent += "  (alias: " + c.aliases.join(", ") + ")";
-    ["ownerOnly:owner", "groupOnly:group"].forEach((p) => {
-      const [key, label] = p.split(":");
-      if (c[key]) { const t = document.createElement("i"); t.className = "tag"; t.textContent = label; info.appendChild(t); }
-    });
-    row.append(name, info);
-    out.appendChild(row);
-  });
-  if (!rows.length) out.textContent = "Koi command nahi mili.";
-}
-$("search").addEventListener("input", render);
-
-async function loadStatus() {
-  const pill = $("wa");
-  try {
-    const s = await (await fetch("/api/status")).json();
-    const ok = s.connection === "open";
-    pill.className = "pill " + (ok ? "ok" : "bad");
-    $("wa-text").textContent = ok ? "WhatsApp connected" : "Not connected" + (s.note ? " - " + s.note : "");
-  } catch { pill.className = "pill bad"; $("wa-text").textContent = "Server offline"; }
-}
-
-$("pair-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const btn = $("pair-btn"), msg = $("pair-msg"), code = $("code");
-  btn.disabled = true; code.hidden = true; msg.className = "hint"; msg.textContent = "Code ban raha hai (10-20 second lag sakte hain)...";
-  try {
-    const r = await fetch("/api/pair?number=" + encodeURIComponent($("number").value.replace(/\D/g, "")));
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Failed");
-    code.textContent = d.code; code.hidden = false;
-    msg.textContent = "Yeh code 1 minute ke andar WhatsApp mein daalo.";
-  } catch (err) { msg.className = "hint err"; msg.textContent = err.message; }
-  btn.disabled = false;
-});
-
-loadCommands();
-loadStatus();
-setInterval(loadStatus, 10000);
+  const btn = document.getElementById('btn'), out = document.getElementById('out'), msg = document.getElementById('msg');
+  btn.onclick = async () => {
+    const n = document.getElementById('num').value.replace(/\D/g, '');
+    out.textContent = ''; msg.textContent = 'Code ban raha hai...'; btn.disabled = true;
+    try {
+      const r = await fetch('/pair?number=' + n);
+      const d = await r.json();
+      if (d.code) { out.textContent = d.code; msg.textContent = 'WhatsApp > Linked Devices > Link with phone number mein ye code daalo.'; }
+      else msg.textContent = d.error || 'Error aa gaya';
+    } catch (e) { msg.textContent = 'Server se connect nahi hua'; }
+    btn.disabled = false;
+  };
 </script>
 </body>
 </html>
