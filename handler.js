@@ -1,76 +1,71 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const commands = new Map();
-export let commandList = [];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let cache = new Map();
+
+export let settings;
 
 export async function loadCommands(){
   try{
     const filePath = path.join(__dirname, 'commands.js');
     const text = fs.readFileSync(filePath, 'utf8');
     const count = (text.match(/\badd\s*\(/g) || []).length;
-    console.log(`[Command Load] ${count} from commands.js`);
+    console.log(`Command Load: ${count}`);
+    const mod = await import(`./commands.js?v=${Date.now()}`);
+    settings = mod.settings;
+    console.log(`✅ ${mod.totalCommands()} COMMANDS LOADED`);
     return count;
   }catch(e){
-    console.log('Load error:', e.message);
+    console.log('Load Error:', e.message);
     return 0;
   }
 }
 
 export async function onMessage(sock, upsert){
+  const m = upsert.messages?.[0];
+  if(!m || !m.message) return;
+  // fromMe ko yahan block mat karo - same number pe kaam nahi karega
   try{
-    const mod = await import(pathToFileURL(path.join(__dirname, 'commands.js')).href + `?t=${Date.now()}`);
-    const handler = mod.default;
-    const msg = upsert.messages?.[0];
-    if(!msg || !msg.message) return;
-    
-    // CACHE for antidelete - yahi main fix hai
-    try{
-      const { cache } = await import('./lib/store.js');
-      if(msg.key?.id) cache.set(msg.key.id, msg);
-    }catch{}
-
-    if(typeof handler === 'function'){
-      await handler(sock, msg);
+    const mod = await import(`./commands.js?v=${Date.now()}`);
+    if(mod.handleMessage){
+      await mod.handleMessage(sock, m);
+    } else if(mod.default){
+      // agar purana default ho to usko bhi support
+      await mod.default(sock, m);
     }
   }catch(e){
-    console.log('onMessage error:', e.message, e.stack);
+    console.log('onMessage error:', e.message);
   }
 }
 
-// YE FUNCTION MISSING THA - Is se deleted message personal pe jayega
 export async function onDelete(sock, updates){
   try{
-    const { cache } = await import('./lib/store.js');
-    const ownerNum = process.env.OWNER_NUMBER || '923263695287';
-    const ownerJid = ownerNum + '@s.whatsapp.net';
-    
+    if(!settings?.antidelete) return;
     for(const upd of updates){
-      if(upd.update?.message === null){
-        const cached = cache.get(upd.key.id);
-        if(cached){
-          const text = cached.message?.conversation || cached.message?.extendedTextMessage?.text || '[Media/File Deleted]';
-          await sock.sendMessage(ownerJid, { 
-            text: `🗑️ *DELETED MESSAGE*\n\nFrom: ${upd.key.remoteJid}\nSender: ${upd.key.participant || upd.key.remoteJid}\nContent: ${text}` 
-          }).catch(()=>{});
-          
-          // Agar image/video delete hua to woh bhi bhejo
-          try{
-            if(cached.message?.imageMessage){
-              await sock.sendMessage(ownerJid, { image: cached.message.imageMessage, caption: `🗑️ Deleted Image from ${upd.key.remoteJid}` }).catch(()=>{});
-            }
-            if(cached.message?.videoMessage){
-              await sock.sendMessage(ownerJid, { video: cached.message.videoMessage, caption: `🗑️ Deleted Video from ${upd.key.remoteJid}` }).catch(()=>{});
-            }
-          }catch{}
-        }
+      const key = upd.key;
+      const cached = cache.get(`${key.remoteJid}_${key.id}`);
+      if(!cached) continue;
+      const ownerJid = (process.env.OWNER_NUMBER || settings.ownerNumber).split(',')[0].trim() + '@s.whatsapp.net';
+      if(cached.message?.imageMessage){
+        await sock.sendMessage(ownerJid, {image: cached.message.imageMessage, caption: `*DELETED IMAGE*\nFrom: ${upd.key.remoteJid}\nBy: ${cached.participant||'Unknown'}`}).catch(()=>{});
+      } else if(cached.message?.videoMessage){
+        await sock.sendMessage(ownerJid, {video: cached.message.videoMessage, caption: `*DELETED VIDEO*\nFrom: ${upd.key.remoteJid}`}).catch(()=>{});
+      } else {
+        await sock.sendMessage(ownerJid, {text: `*DELETED MESSAGE*\nFrom: ${upd.key.remoteJid}\nMsg: ${cached.message?.conversation || cached.message?.extendedTextMessage?.text || 'Media/ File Deleted'}`}).catch(()=>{});
       }
     }
-  }catch(e){
-    console.log('onDelete error:', e.message);
-  }
+  }catch(e){ console.log('onDelete error:', e.message); }
 }
 
-export const onGroupUpdate = ()=>{};
+// Cache message for antidelete
+export function cacheMessage(key, msg){
+  cache.set(`${key.remoteJid}_${key.id}`, {message: msg.message, participant: msg.key.participant, timestamp: Date.now()});
+  if(cache.size > 100) {
+    const firstKey = cache.keys().next().value;
+    cache.delete(firstKey);
+  }
+}
