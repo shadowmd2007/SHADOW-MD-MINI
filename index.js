@@ -1,127 +1,130 @@
 import fs from 'fs';
 import path from 'path';
-import pino from 'pino';
+import { fileURLToPath } from 'url';
 import express from 'express';
+import pino from 'pino';
 import makeWASocket, {
-  useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason,
-  Browsers, makeCacheableSignalKeyStore,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  DisconnectReason,
+  Browsers,
+  makeCacheableSignalKeyStore
 } from '@whiskeysockets/baileys';
 import config from './config.js';
-import store, { cache } from './lib/store.js';
+import store from './lib/store.js';
 import * as U from './lib/utils.js';
-import { loadCommands, onMessage } from './handler.js';
-import { onGroupUpdate } from './plugins/groups.js';
-import { pairNumber } from './lib/pair.js';
+import { loadCommands, onMessage, onGroupUpdate } from './handler.js';
 
 try { const f = (await import('ffmpeg-static')).default; if (f) process.env.FFMPEG_PATH = f; } catch {}
 
-process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e?.message || e));
-process.on('uncaughtException', (e) => console.error('uncaughtException:', e?.message || e));
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e?.message));
+process.on('uncaughtException', (e) => console.error('uncaughtException:', e?.message));
 
-/* ---------------- Web server (Render ke liye) ---------------- */
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const startedAt = Date.now();
-const lastPair = new Map();
-app.get('/health', (_, res) => res.json({ ok: true, bot: config.botName, uptime: U.runtime((Date.now() - startedAt) / 1000) }));
-app.get('/pair', async (req, res) => {
-  const ip = req.headers['x-forwarded-for'] || req.ip;
-  if (Date.now() - (lastPair.get(ip) || 0) < 15000) return res.status(429).json({ error: '15 second baad dobara try karo' });
-  lastPair.set(ip, Date.now());
-  try { res.json({ code: await pairNumber(req.query.number) }); }
-  catch (e) { res.status(400).json({ error: e.message }); }
-});
+app.use(express.json());
 app.use(express.static('public'));
-app.get('/', (_, res) => {
-  const f = path.resolve('index.html');
-  fs.existsSync(f) ? res.sendFile(f) : res.send(`${config.botName} is running ✅`);
-});
-app.listen(config.port, () => console.log(`🌐 Server port ${config.port} par chal raha hai`));
 
-if (process.env.RENDER_EXTERNAL_URL) {
-  setInterval(() => fetch(process.env.RENDER_EXTERNAL_URL + '/health').catch(() => {}), 4 * 60 * 1000);
-}
-
-/* ---------------- WhatsApp ---------------- */
-const logger = pino({ level: 'silent' });
 const sentIds = new Set();
-let sessionWritten = false;
 let presenceTimer;
 
 async function start() {
   fs.mkdirSync(config.authDir, { recursive: true });
   const credsPath = path.join(config.authDir, 'creds.json');
-  if (process.env.SESSION_ID && !sessionWritten && !fs.existsSync(credsPath)) {
-    try {
-      const raw = process.env.SESSION_ID.trim().split(';;;').pop();
-      const txt = Buffer.from(raw, 'base64').toString('utf8');
-      JSON.parse(txt);
-      fs.writeFileSync(credsPath, txt);
-      console.log('🔑 SESSION_ID se login ho raha hai');
-    } catch { console.error('❌ SESSION_ID galat hai'); }
-    sessionWritten = true;
-  }
-
+  
+  console.log('🔄 Starting SHADOW MD...');
+  
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
   const { version } = await fetchLatestBaileysVersion();
+  const logger = pino({ level: 'silent' });
 
   const sock = makeWASocket({
-    version, logger,
-    auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
+    version,
+    logger,
     printQRInTerminal: false,
-    browser: Browsers.ubuntu('Chrome'),
+    browser: Browsers.macOS('Chrome'),
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, logger)
+    },
     markOnlineOnConnect: false,
     syncFullHistory: false,
-    getMessage: async (key) => cache.get(key.id)?.message,
+    getMessage: async (key) => {
+      const msg = store.cache?.get(key.id);
+      return msg?.message;
+    }
   });
 
-  // bot ke apne bheje hue messages ko dobara process na karein
+  // Anti-delete ke liye message save
   const origSend = sock.sendMessage.bind(sock);
   sock.sendMessage = async (...a) => {
     const r = await origSend(...a);
-    if (r?.key?.id) { sentIds.add(r.key.id); if (sentIds.size > 2000) sentIds.delete(sentIds.values().next().value); }
+    if (r?.key?.id) sentIds.add(r.key.id);
+    if (sentIds.size > 2000) {
+      const it = sentIds.values(); sentIds.delete(it.next().value);
+    }
     return r;
   };
 
-  sock.ev.on('creds.update', saveCreds);
-
-  if (!sock.authState.creds.registered) {
-    setTimeout(async () => {
-      try {
-        const code = await sock.requestPairingCode(config.botNumber);
-        console.log(`\n==============================\n  PAIRING CODE: ${code.match(/.{1,4}/g).join('-')}\n  WhatsApp > Linked Devices > Link with phone number\n==============================\n`);
-      } catch (e) { console.error('Pairing code error:', e.message); }
-    }, 3000);
+  // Pairing Code Logic - Bina SESSION ID ke
+  if (!state.creds.registered) {
+    try {
+      await new Promise(r => setTimeout(r, 2000));
+      const number = config.ownerNumber.replace(/[^0-9]/g, '');
+      const code = await sock.requestPairingCode(number);
+      console.log(`\n\n================ PAIRING CODE: ${code.match(/.{1,4}/g).join('-')} ================`);
+      console.log(`WhatsApp > Linked Devices > Link with phone number\n\n`);
+    } catch (e) {
+      console.log('Pairing error:', e.message);
+    }
   }
+
+  sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
     if (connection === 'open') {
-      console.log(`✅ ${config.botName} connected as ${sock.user.id}`);
+      console.log(`✅ ${config.botName} Connected! - ${new Date().toLocaleString()}`);
+      await loadCommands();
       clearInterval(presenceTimer);
-      const setP = () => sock.sendPresenceUpdate(store.get('online') ? 'available' : 'unavailable').catch(() => {});
-      setP(); presenceTimer = setInterval(setP, 60000);
-      sock.sendMessage(U.ownerJid(), { text: `✅ *${store.get('botName')}* online hai!\n🔧 Prefix: ${store.get('prefix')}\n📦 Commands: ${(await import('./handler.js')).commandList.length}` }).catch(() => {});
+      presenceTimer = setInterval(() => {
+        sock.sendPresenceUpdate(store.get('online') ? 'available' : 'unavailable').catch(()=>{});
+      }, 30 * 1000);
+      await sock.sendPresenceUpdate(store.get('online') ? 'available' : 'unavailable');
     }
+
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
+      console.log('Connection closed:', code);
       clearInterval(presenceTimer);
+      
       if (code === DisconnectReason.loggedOut) {
-        console.log('🚪 Logged out. Auth delete kar ke dobara pairing code bana raha hoon...');
+        console.log('❌ Logged out, deleting session and re-pairing...');
         fs.rmSync(config.authDir, { recursive: true, force: true });
-      } else console.log('🔄 Reconnecting... (code', code, ')');
-      setTimeout(() => start().catch((e) => console.error(e)), 3000);
+        setTimeout(() => start().catch(e => console.error(e)), 3000);
+      } else {
+        console.log('🔄 Reconnecting in 3 sec...');
+        setTimeout(() => start().catch(e => console.error(e)), 3000);
+      }
     }
   });
 
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
-    for (const m of messages) {
-      if (m.key?.id && sentIds.has(m.key.id)) continue;
-      onMessage(sock, m).catch((e) => console.error('onMessage:', e?.message || e));
+  sock.ev.on('messages.upsert', async (m) => {
+    for (const msg of m.messages) {
+      if (msg.key?.id && sentIds.has(msg.key.id)) continue;
+      if (m.type === 'notify') await onMessage(sock, { messages: [msg] }).catch(e => console.error(e.message));
     }
   });
 
   sock.ev.on('group-participants.update', (u) => onGroupUpdate(sock, u));
 }
 
+app.get('/health', (req, res) => res.json({ ok: true, bot: config.botName }));
+app.get('/pair', async (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+const PORT = config.port || 3000;
+app.listen(PORT, () => console.log(`Web running on port ${PORT}`));
+
 await loadCommands();
-start().catch((e) => console.error('start error:', e));
+start().catch(e => console.error('start error:', e));
