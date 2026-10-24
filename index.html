@@ -1,76 +1,39 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHADOW MD</title>
-<style>
-body{font-family:sans-serif;padding:20px;background:#f5f5f5}
-.box{background:white;padding:20px;border-radius:10px;max-width:400px;margin:auto;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
-input{width:100%;padding:12px;font-size:18px;margin:10px 0;border:2px solid #25D366;border-radius:8px;box-sizing:border-box}
-button{width:100%;padding:12px;background:#25D366;color:white;border:none;border-radius:8px;font-size:18px;font-weight:bold;cursor:pointer}
-#codeBox{margin-top:20px;padding:15px;background:#e8f5e9;border-radius:8px;text-align:center;display:none}
-#code{font-size:28px;font-weight:bold;letter-spacing:3px;color:#128C7E}
-</style>
-</head>
-<body>
-<div class="box">
-<h1>SHADOW MD</h1>
-<p>Link your WhatsApp with a pairing code</p>
-<label>WhatsApp number (with country code)</label>
-<input id="numberInput" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="923001234567" autocomplete="off">
-<p style="font-size:12px">Digits only, No leading 0. Example: 923001234567</p>
-<button id="getBtn">Get pairing code</button>
-<div id="codeBox">
-<div>Your Code:</div>
-<div id="code"></div>
-<p style="font-size:12px">WhatsApp > Linked devices > Link with phone number</p>
-</div>
-<div id="status" style="margin-top:10px;font-size:14px"></div>
-<ol style="font-size:14px">
-<li>Enter number and tap Get pairing code.</li>
-<li>On phone open WhatsApp → Settings → Linked devices.</li>
-<li>Tap a device, then Link with phone number instead.</li>
-<li>Type the code shown here.</li>
-</ol>
-</div>
+
+<div id="api-status">Loading commands...</div>
+<div id="api-commands"></div>
 
 <script>
-const numInput = document.getElementById('numberInput');
-const btn = document.getElementById('getBtn');
-const codeBox = document.getElementById('codeBox');
-const codeEl = document.getElementById('code');
-const statusEl = document.getElementById('status');
+async function loadCommands() {
+  const status = document.getElementById("api-status");
+  const output = document.getElementById("api-commands");
 
-// Number ko gayab hone se rokna
-numInput.addEventListener('input', function(){
-  this.value = this.value.replace(/[^0-9]/g,'');
-});
+  try {
+    const response = await fetch("/api/commands");
 
-btn.addEventListener('click', async () => {
-  let num = numInput.value.replace(/[^0-9]/g,'').trim();
-  if(num.length < 11){ statusEl.innerText = 'Number chota hai, 923... se start karo'; return; }
-  
-  btn.innerText = 'Wait...';
-  btn.disabled = true;
-  statusEl.innerText = 'Code le raha hun, 20 sec wait...';
-  
-  try{
-    let res = await fetch('/?number=' + num);
-    let data = await res.json();
-    if(data.code){
-      codeEl.innerText = data.code;
-      codeBox.style.display = 'block';
-      statusEl.innerText = 'Code mil gaya! WhatsApp me dalo';
-    }else{
-      statusEl.innerText = 'Error: ' + (data.error || 'Try again');
+    if (!response.ok) {
+      throw new Error("API error: " + response.status);
     }
-  }catch(e){
-    statusEl.innerText = 'Server error - Render Logs check karo';
+
+    const data = await response.json();
+    const commands = Array.isArray(data)
+      ? data
+      : data.commands || [];
+
+    status.textContent = "Total commands: " + commands.length;
+    output.replaceChildren();
+
+    commands.forEach((command) => {
+      const item = document.createElement("div");
+      item.textContent =
+        typeof command === "string"
+          ? command
+          : command.name || command.command || JSON.stringify(command);
+      output.appendChild(item);
+    });
+  } catch (error) {
+    status.textContent = "API connect nahi hui: " + error.message;
   }
-  btn.innerText = 'Get pairing code';
-  btn.disabled = false;
-});
+}
+
+loadCommands();
 </script>
-</body>
-</html>
