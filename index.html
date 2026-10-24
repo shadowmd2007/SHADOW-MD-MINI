@@ -1,39 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHADOW MD MINI</title>
+<style>
+  :root { --bg:#0e1116; --card:#171b22; --line:#262c36; --text:#e8ecf2; --mute:#8b95a5; --accent:#25d366; --bad:#ff6b6b; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f4f6f8; --card:#fff; --line:#dde2e8; --text:#161a20; --mute:#5d6877; --accent:#128c4a; --bad:#c62828; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:1.5rem; margin:0; }
+  h2 { font-size:1.05rem; margin:0 0 10px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:99px; border:1px solid var(--line); font-size:.85rem; color:var(--mute); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--mute); }
+  .pill.ok .dot { background:var(--accent); } .pill.ok { color:var(--text); }
+  .pill.bad .dot { background:var(--bad); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px; }
+  form { display:flex; gap:8px; flex-wrap:wrap; }
+  input { flex:1 1 200px; min-width:0; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; }
+  button { padding:11px 18px; border:0; border-radius:10px; background:var(--accent); color:#06210f; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .code { font:700 1.9rem/1.2 ui-monospace,Menlo,Consolas,monospace; letter-spacing:.12em; margin:12px 0 2px; color:var(--accent); }
+  .hint { color:var(--mute); font-size:.9rem; margin:6px 0 0; }
+  .err { color:var(--bad); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0; }
+  .chip { padding:5px 12px; border-radius:99px; border:1px solid var(--line); background:transparent; color:var(--mute); font-size:.85rem; font-weight:500; }
+  .chip.on { background:var(--accent); color:#06210f; border-color:var(--accent); }
+  .cmd { display:grid; grid-template-columns:minmax(90px,150px) 1fr; gap:4px 12px; padding:9px 0; border-top:1px solid var(--line); }
+  .cmd b { font:600 .95rem ui-monospace,Menlo,Consolas,monospace; word-break:break-all; }
+  .cmd span { color:var(--mute); font-size:.92rem; }
+  .tag { font-size:.7rem; border:1px solid var(--line); border-radius:6px; padding:0 6px; margin-left:6px; color:var(--mute); }
+  #api-status { font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>SHADOW MD MINI</h1>
+    <span class="pill" id="wa"><span class="dot"></span><span id="wa-text">checking...</span></span>
+  </header>
 
-<div id="api-status">Loading commands...</div>
-<div id="api-commands"></div>
+  <section>
+    <h2>Link WhatsApp</h2>
+    <form id="pair-form">
+      <input id="number" inputmode="numeric" autocomplete="tel" placeholder="923001234567 (country code ke saath, + ke baghair)" required>
+      <button id="pair-btn">Get code</button>
+    </form>
+    <div class="code" id="code" hidden></div>
+    <p class="hint" id="pair-msg">WhatsApp &gt; Linked devices &gt; Link with phone number, phir yeh code daalo.</p>
+  </section>
+
+  <section>
+    <h2>Commands</h2>
+    <div id="api-status">Loading commands...</div>
+    <input id="search" type="search" placeholder="Search commands..." style="width:100%;margin-top:10px" hidden>
+    <div class="chips" id="chips"></div>
+    <div id="api-commands"></div>
+  </section>
+</main>
 
 <script>
-async function loadCommands() {
-  const status = document.getElementById("api-status");
-  const output = document.getElementById("api-commands");
+const $ = (id) => document.getElementById(id);
+let all = [], category = "ALL";
 
+async function loadCommands() {
+  const status = $("api-status");
   try {
     const response = await fetch("/api/commands");
-
-    if (!response.ok) {
-      throw new Error("API error: " + response.status);
-    }
-
+    if (!response.ok) throw new Error("API error: " + response.status);
     const data = await response.json();
-    const commands = Array.isArray(data)
-      ? data
-      : data.commands || [];
-
-    status.textContent = "Total commands: " + commands.length;
-    output.replaceChildren();
-
-    commands.forEach((command) => {
-      const item = document.createElement("div");
-      item.textContent =
-        typeof command === "string"
-          ? command
-          : command.name || command.command || JSON.stringify(command);
-      output.appendChild(item);
-    });
+    all = Array.isArray(data) ? data : data.commands || [];
+    status.textContent = "Total commands: " + all.length;
+    $("search").hidden = false;
+    buildChips(data.categories || [...new Set(all.map((c) => c.category))]);
+    render();
   } catch (error) {
     status.textContent = "API connect nahi hui: " + error.message;
+    status.className = "err";
   }
 }
 
+function buildChips(cats) {
+  const box = $("chips");
+  box.replaceChildren();
+  ["ALL", ...cats].forEach((c) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (c === category ? " on" : "");
+    b.textContent = c === "ALL" ? "All" : c.charAt(0) + c.slice(1).toLowerCase();
+    b.onclick = () => { category = c; buildChips(cats); render(); };
+    box.appendChild(b);
+  });
+}
+
+function render() {
+  const q = $("search").value.trim().toLowerCase();
+  const out = $("api-commands");
+  out.replaceChildren();
+  const rows = all.filter((c) =>
+    (category === "ALL" || c.category === category) &&
+    (!q || c.name.includes(q) || (c.description || "").toLowerCase().includes(q) || (c.aliases || []).some((a) => a.includes(q))));
+  rows.forEach((c) => {
+    const row = document.createElement("div");
+    row.className = "cmd";
+    const name = document.createElement("b");
+    name.textContent = c.command || c.name;
+    const info = document.createElement("span");
+    info.textContent = c.description || c.category;
+    if (c.aliases && c.aliases.length) info.textContent += "  (alias: " + c.aliases.join(", ") + ")";
+    ["ownerOnly:owner", "groupOnly:group"].forEach((p) => {
+      const [key, label] = p.split(":");
+      if (c[key]) { const t = document.createElement("i"); t.className = "tag"; t.textContent = label; info.appendChild(t); }
+    });
+    row.append(name, info);
+    out.appendChild(row);
+  });
+  if (!rows.length) out.textContent = "Koi command nahi mili.";
+}
+$("search").addEventListener("input", render);
+
+async function loadStatus() {
+  const pill = $("wa");
+  try {
+    const s = await (await fetch("/api/status")).json();
+    const ok = s.connection === "open";
+    pill.className = "pill " + (ok ? "ok" : "bad");
+    $("wa-text").textContent = ok ? "WhatsApp connected" : "Not connected" + (s.note ? " - " + s.note : "");
+  } catch { pill.className = "pill bad"; $("wa-text").textContent = "Server offline"; }
+}
+
+$("pair-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("pair-btn"), msg = $("pair-msg"), code = $("code");
+  btn.disabled = true; code.hidden = true; msg.className = "hint"; msg.textContent = "Code ban raha hai (10-20 second lag sakte hain)...";
+  try {
+    const r = await fetch("/api/pair?number=" + encodeURIComponent($("number").value.replace(/\D/g, "")));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Failed");
+    code.textContent = d.code; code.hidden = false;
+    msg.textContent = "Yeh code 1 minute ke andar WhatsApp mein daalo.";
+  } catch (err) { msg.className = "hint err"; msg.textContent = err.message; }
+  btn.disabled = false;
+});
+
 loadCommands();
+loadStatus();
+setInterval(loadStatus, 10000);
 </script>
+</body>
+</html>
