@@ -1,42 +1,73 @@
-import { config } from "../config.js";
+import config from '../config.js';
 
-export const command = {
+export default {
   name: "menu",
-  aliases: ["allmenu", "help", "list"],
+  alias: ["help", "list", "commands"],
   category: "MAIN",
-  description: "Show all loaded commands",
-  async run({ sock, remote, msg, commands, prefix }) {
-    const groups = new Map();
-    for (const cmd of commands.values()) {
-      const category = String(cmd.category || "OTHER").toUpperCase();
-      if (!groups.has(category)) groups.set(category, []);
-      groups.get(category).push(cmd);
-    }
-
-    const order = ["MAIN", "GROUP", "OWNER", "FUN", "MATH", "TOOLS", "UTILITY", "DOWNLOAD", "AI", "SEARCH", "STICKER", "OTHER"];
-    let text = `*┌───⭓ ${config.botName} ⭓───*\\n`;
-    text += `*│* 👑 *OWNER:* ${config.ownerName}\\n`;
-    text += `*│* 🔑 *PREFIX:* ${prefix || config.prefix}\\n`;
-    text += `*│* 🧩 *COMMANDS:* ${commands.size}\\n`;
-    text += `*└───────────────────⭓*\\n\\n`;
-
-    const categories = [...new Set([...order, ...groups.keys()])];
-    for (const category of categories) {
-      const items = groups.get(category);
-      if (!items || !items.length) continue;
-      items.sort((a, b) => a.name.localeCompare(b.name));
-      text += `*┌───⭓ ${category.toLowerCase()} ⭓───*\\n`;
-      for (const cmd of items) text += `*│* ${prefix || config.prefix}${cmd.name}\\n`;
-      text += `*└───────────────────⭓*\\n\\n`;
-    }
-
-    text += "> *Powered by SHADOW MD*";
+  description: "Show all commands",
+  
+  async run(sock, remote, extra) {
     try {
-      await sock.sendMessage(remote, { image: { url: config.imageUrl }, caption: text.trim() }, { quoted: msg });
-    } catch {
-      await sock.sendMessage(remote, { text: text.trim() }, { quoted: msg });
+      // Commands Map ko handler se lo
+      let commandsMap;
+      try {
+        const handlerMod = await import('../handler.js');
+        commandsMap = handlerMod.commands || handlerMod.default?.commands || global.commands;
+      } catch {
+        commandsMap = global.commands || new Map();
+      }
+
+      // Agar commands.js se hai to
+      if (!commandsMap || commandsMap.size === 0) {
+        try {
+          const cmdMod = await import('../commands.js');
+          commandsMap = cmdMod.commands || cmdMod.default || new Map();
+        } catch {}
+      }
+
+      let prefix = config.prefix || ".";
+      let groups = new Map();
+
+      // Saare commands ko category wise group karo
+      for (const cmd of commandsMap.values()) {
+        let cat = (cmd.category || cmd.cat || "OTHER").toUpperCase();
+        if (!groups.has(cat)) groups.set(cat, []);
+        groups.get(cat).push(cmd);
+      }
+
+      let total = commandsMap.size;
+      let text = `*╭───『 ${config.botName || "SHADOW MD MINI"} 』───*\n`;
+      text += `*│* OWNER: ${config.ownerName || "RANA FURQAN"}\n`;
+      text += `*│* PREFIX: ${prefix}\n`;
+      text += `*│* COMMANDS: ${total}\n`;
+      text += `*│* MODE: ${config.mode || "public"}\n`;
+      text += `*╰───────────────*\n\n`;
+
+      // Categories ko sort karke dikhao
+      let categories = Array.from(groups.keys()).sort();
+      
+      for (const category of categories) {
+        let items = groups.get(category);
+        items.sort((a, b) => (a.name || a.command || "").localeCompare(b.name || b.command || ""));
+        
+        text += `*${category}*\n`;
+        for (const cmd of items) {
+          let cmdName = cmd.name || cmd.command || "unknown";
+          text += ` ${prefix}${cmdName}\n`;
+        }
+        text += `\n`;
+      }
+
+      text += `> Powered by SHADOW MD`;
+
+      await sock.sendMessage(remote, {
+        image: { url: config.menuImage || "https://files.catbox.moe/7zf9q6.jpg" },
+        caption: text.trim()
+      }, { quoted: extra?.msg || undefined });
+
+    } catch (e) {
+      console.log("Menu error:", e.message);
+      await sock.sendMessage(remote, { text: `*MENU*\nError: ${e.message}\n\nTotal Commands: 78\nUse .antidelete on` }, { quoted: extra?.msg });
     }
   }
 };
-
-export default command;
