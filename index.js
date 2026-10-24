@@ -1,53 +1,102 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
-import { jidNormalizedUser } from '@whiskeysockets/baileys';
-import config from './config.js';
-import store from './lib/store.js';
-import * as U from './lib/utils.js';
+import { fileURLToPath } from 'url';
+import express from 'express';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const commands = new Map();
-export const commandList = [];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-export async function loadCommands() {
-  commands.clear(); commandList.length = 0;
-  const dir = path.join(__dirname, 'commands');
-  if (!fs.existsSync(dir)) return;
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.js'));
-  for (const f of files) {
-    try {
-      const mod = await import(pathToFileURL(path.join(dir, f)).href + `?v=${Date.now()}`);
-      const c = mod.default || mod;
-      if (!c?.name) continue;
-      commands.set(c.name.toLowerCase(), c);
-      if (c.alias) for (const a of c.alias) commands.set(a.toLowerCase(), c);
-      commandList.push(c);
-    } catch (e) { console.log(`Command fail ${f}:`, e.message); }
-  }
-  console.log(`✅ ${commandList.length} commands loaded`);
-}
+const app = express();
+app.use(express.json());
 
-export async function onMessage(sock, m) {
+// FIX: Cannot GET / Error Fix
+const publicPath = path.join(__dirname, 'public');
+if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
+app.use(express.static(publicPath));
+
+app.get('/', (req, res) => {
+  const indexFile = path.join(publicPath, 'index.html');
+  if (fs.existsSync(indexFile)) res.sendFile(indexFile);
+  else res.send(`<h1>SHADOW MD is Running ✅</h1><p>Bot is starting... Check /health</p><a href="/pair">Pairing Page</a>`);
+});
+
+app.get('/pair', (req, res) => {
+  const indexFile = path.join(publicPath, 'index.html');
+  if (fs.existsSync(indexFile)) res.sendFile(indexFile);
+  else res.send(`<h1>Pairing Page</h1><p>public/index.html missing</p>`);
+});
+
+app.get('/health', (req, res) => res.json({ ok: true, status: 'running', time: new Date().toISOString() }));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Web running on port ${PORT}`));
+
+// --- BOT LOGIC ALAG SE START HOGA TAKE WEB CRASH NA HO ---
+(async () => {
   try {
-    const msg = m.messages?.[0]; if (!msg?.message) return;
-    if (msg.key.remoteJid === 'status@broadcast') return;
-    const remoteJid = msg.key.remoteJid;
-    const isGroup = remoteJid.endsWith('@g.us');
-    const sender = jidNormalizedUser(msg.key.participant || remoteJid);
-    const body = U.textOf(U.unwrap(msg.message)); if (!body) return;
-    const prefix = store.get('prefix') || '.';
-    if (!body.startsWith(prefix)) return;
-    const args = body.slice(prefix.length).trim().split(/ +/);
-    const cmdName = args.shift().toLowerCase();
-    const cmd = commands.get(cmdName); if (!cmd) return;
-    const isOwner = msg.key.fromMe || sender.includes(config.ownerNumber);
-    if (cmd.owner && !isOwner) return;
-    const reply = (t) => sock.sendMessage(remoteJid, { text: t }, { quoted: msg });
-    await cmd.run({ sock, msg, from: remoteJid, sender, args, input: args.join(' '), reply, isOwner, isGroup, prefix, commands: commandList });
-  } catch (e) { console.error('onMessage error:', e.message); }
-}
+    console.log('🔄 Starting Bot Logic...');
+    const pino = (await import('pino')).default;
+    const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, Browsers, makeCacheableSignalKeyStore } = await import('@whiskeysockets/baileys');
+    
+    let config = { ownerNumber: '923xxx', botName: 'SHADOW MD', authDir: './auth', port: PORT };
+    try {
+      const cfg = await import('./config.js');
+      config = { ...config, ...(cfg.default || {}) };
+    } catch {}
 
-export async function onGroupUpdate(sock, update) {
-  // aapka group wala code yahan rahega
-}
+    const authDir = './auth';
+    fs.mkdirSync(authDir, { recursive: true });
+
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
+    const { version } = await fetchLatestBaileysVersion();
+    const logger = pino({ level: 'silent' });
+
+    const sock = makeWASocket({
+      version, logger,
+      printQRInTerminal: false,
+      browser: Browsers.macOS('Chrome'),
+      auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
+      markOnlineOnConnect: true,
+    });
+
+    if (!state.creds.registered) {
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        const number = (config.ownerNumber || '923000000000').replace(/[^0-9]/g, '');
+        const code = await sock.requestPairingCode(number);
+        console.log(`\n\n======== PAIRING CODE: ${code} ========\n\n`);
+      } catch (e) { console.log('Pairing fail:', e.message); }
+    }
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (connection === 'open') {
+        console.log(`✅ ${config.botName} Connected!`);
+        try {
+          const { loadCommands } = await import('./handler.js');
+          await loadCommands();
+        } catch (e) { console.log('Commands load fail:', e.message); }
+      }
+      if (connection === 'close') {
+        const code = lastDisconnect?.error?.output?.statusCode;
+        console.log('Closed, code:', code);
+        if (code === DisconnectReason.loggedOut) {
+          fs.rmSync(authDir, { recursive: true, force: true });
+        }
+        setTimeout(() => process.exit(1), 2000); // Render khud restart karega
+      }
+    });
+
+    sock.ev.on('messages.upsert', async (m) => {
+      try {
+        const { onMessage } = await import('./handler.js');
+        await onMessage(sock, m);
+      } catch (e) { console.error('onMessage:', e.message); }
+    });
+
+  } catch (e) {
+    console.error('Bot logic error (Web will still run):', e.message);
+    console.error(e.stack);
+  }
+})();
