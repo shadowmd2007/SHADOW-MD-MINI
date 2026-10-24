@@ -4,14 +4,16 @@ const jidNormalizedUser = B('jidNormalizedUser') ?? ((j) => (j || '').replace(/:
 const normalizeMessageContent = B('normalizeMessageContent');
 
 export const settings = {
-  prefix: '.', mode: 'public', version: '5.0 150 CMDS',
+  prefix: '.', mode: 'public', version: '6.0 FINAL 150',
   botName: 'Shadow MD Mini', ownerName: 'Rana Furqan Rajput',
   ownerNumber: process.env.OWNER_NUMBER || '923003719761',
   picUrl: 'https://i.ibb.co/zhHMv7FM/file-00000000842482109e9c8ceae82aa6f8.png',
-  antidelete: false, autostatus: false, autoreact: false,
+  antidelete: false, autostatus: false,
 };
 
-const OWNER_VV_KEYWORDS = ['subhanallah','mashaallah','mashallah','vv2','vv3','ok','nice','rana','beautiful','best','wah','lajawab','handsome','cute'];
+// SIRF VIEWONCE KE LIYE - RANA WALE HATA DIYE
+const OWNER_VV_KEYWORDS = ['subhanallah','mashaallah','mashallah'];
+
 const startedAt = Date.now();
 let picBuf = null;
 async function getPic(){ if(picBuf) return picBuf; try{ const r=await fetch(settings.picUrl); picBuf=Buffer.from(await r.arrayBuffer()); }catch{} return picBuf; }
@@ -24,7 +26,7 @@ function add(name, opts, run){ const c={name, cat: opts.cat||'general', alias: o
 async function handleVV(c){
   const ctx = c.m.message?.extendedTextMessage?.contextInfo || c.content?.extendedTextMessage?.contextInfo;
   const q = ctx?.quotedMessage;
-  if(!q) return c.reply('One Time ko Reply karke likho: SubhanAllah, MashaAllah, Ok, Nice, Rana etc');
+  if(!q) return c.reply('Reply to One Time Photo/Video then type: SubhanAllah, MashaAllah');
   const vo = q?.viewOnceMessage?.message || q?.viewOnceMessageV2?.message || q?.viewOnceMessageV2Extension?.message || q;
   const inner = Object.values(vo)[0] || vo;
   if(inner?.imageMessage) await c.sock.sendMessage(c.jid, {image: inner.imageMessage, caption: c.text.toUpperCase()}, {quoted: c.m}).catch(()=>{});
@@ -33,24 +35,49 @@ async function handleVV(c){
   else c.reply('No viewonce found');
 }
 
-// GENERAL 1-7
+// MENU - HAR COMMAND APNI LINE ME
 add('menu', {cat:'general', alias:['help']}, async(c)=>{
   let out = 'SHADOW MD MINI 150\nOWNER: RANA FURQAN 923003719761\nCMDS: '+list.length+'\nRUN: '+fmtTime(Date.now()-startedAt)+'\n\n';
-  const cats = {general:'GENERAL', fun:'FUN', downloader:'DOWNLOADER', group:'GROUP', owner:'OWNER', ai:'AI'};
+  const cats = {
+    general:'GENERAL', 
+    fun:'FUN', 
+    downloader:'DOWNLOADER', 
+    group:'GROUP', 
+    owner:'OWNER', 
+    ai:'AI'
+  };
   for(const k in cats){
     const items = list.filter(x=>x.cat===k);
-    if(items.length) out+=cats[k]+': '+items.map(x=>x.name.toUpperCase()).join(', ')+'\n\n';
+    if(!items.length) continue;
+    out += '--- '+cats[k]+' ---\n';
+    for(const it of items){
+      out += '. '+it.name.toUpperCase()+'\n';
+    }
+    out += '\n';
   }
   await sendPic(c.sock,c.jid,out,c.m);
 });
+
+// UPDATE COMMAND - ONE TIME WALA NAHI AYEGA
+add('update', {cat:'owner', owner:true}, async(c)=>{
+  try{
+    const mod = await import('./commands.js?v='+Date.now());
+    c.reply('UPDATE SUCCESS\nCMDS: '+mod.totalCommands()+'\nAll commands reloaded!');
+    if(global.loadCommands) await global.loadCommands();
+  }catch(e){
+    c.reply('UPDATE FAILED: '+e.message);
+  }
+});
+
 add('ping', {cat:'general'}, async(c)=>{ await c.reply('PONG! BOT WORKING - 150 CMDS - RANA FURQAN'); });
 add('alive', {cat:'general'}, async(c)=>{ await sendPic(c.sock,c.jid,'ALIVE - SHADOW MD MINI 150 - RANA FURQAN 923003719761',c.m); });
 add('runtime', {cat:'general'}, (c)=>c.reply('RUNTIME: '+fmtTime(Date.now()-startedAt)));
 add('owner', {cat:'general'}, (c)=>c.reply('OWNER: Rana Furqan Rajput 923003719761'));
 add('botinfo', {cat:'general'}, (c)=>c.reply('BOT: SHADOW MD MINI 150 CMDS'));
 add('support', {cat:'general'}, (c)=>c.reply('SUPPORT: wa.me/923003719761'));
+add('ping2', {cat:'general'}, (c)=>c.reply('PONG2 - 150 WORKING'));
 
-// FUN 8-26
+// FUN
 add('quote', {cat:'fun'}, (c)=>c.reply('Life is beautiful'));
 add('fact', {cat:'fun'}, (c)=>c.reply('Honey never spoils'));
 add('truth', {cat:'fun'}, (c)=>c.reply('Truth game'));
@@ -71,7 +98,7 @@ add('horoscope', {cat:'fun'}, (c)=>c.reply('HOROSCOPE: Today is good'));
 add('palmistry', {cat:'fun'}, (c)=>c.reply('PALMISTRY: Good lines'));
 add('love', {cat:'fun'}, (c)=>c.reply('LOVE: 100%'));
 
-// DOWNLOADER 27-40
+// DOWNLOADER
 add('video', {cat:'downloader'}, (c)=>c.reply('VIDEO DL: '+c.text));
 add('play', {cat:'downloader'}, (c)=>c.reply('PLAY: '+c.text));
 add('drama', {cat:'downloader'}, (c)=>c.reply('DRAMA: '+c.text));
@@ -87,7 +114,7 @@ add('mediafire', {cat:'downloader'}, (c)=>c.reply('MEDIAFIRE: '+c.text));
 add('gdrive', {cat:'downloader'}, (c)=>c.reply('GDRIVE: '+c.text));
 add('twitter', {cat:'downloader'}, (c)=>c.reply('TWITTER: '+c.text));
 
-// GROUP 41-67
+// GROUP
 add('tagall', {cat:'group'}, async(c)=>{ const meta=await c.getMeta(); await c.sock.sendMessage(c.jid,{text:'TAGALL', mentions:meta.participants.map(p=>p.id)}, {quoted:c.m}); });
 add('kick', {cat:'group'}, async(c)=>{ if(c.targets.length) await c.sock.groupParticipantsUpdate(c.jid, c.targets, 'remove'); c.reply('Kicked'); });
 add('promote', {cat:'group'}, async(c)=>{ await c.sock.groupParticipantsUpdate(c.jid, c.targets, 'promote'); c.reply('Promoted'); });
@@ -116,7 +143,7 @@ add('del', {cat:'group'}, async(c)=>{ const info=c.m.message?.extendedTextMessag
 add('chreact', {cat:'group'}, async(c)=>{ await c.sock.sendMessage(c.jid, {react: {text: c.args[0]||'❤️', key: c.m.key}}); });
 add('chreact2', {cat:'group'}, async(c)=>{ await c.sock.sendMessage(c.jid, {react: {text: c.args[0]||'🔥', key: c.m.key}}); });
 
-// OWNER 68-105
+// OWNER - RANA WALE KHATAM, SIRF VV + BASIC
 add('vv', {cat:'owner', owner:true}, async(c)=> handleVV(c));
 add('vv2', {cat:'owner', owner:true}, async(c)=> handleVV(c));
 add('vv3', {cat:'owner', owner:true}, async(c)=> handleVV(c));
@@ -142,28 +169,18 @@ add('mode', {cat:'owner', owner:true}, (c)=>{ settings.mode=c.args[0]||'public';
 add('antidelete', {cat:'owner', owner:true}, (c)=>{ settings.antidelete=c.args[0]==='on'; c.reply('ANTIDELETE: '+settings.antidelete); });
 add('autostatus', {cat:'owner', owner:true}, (c)=>{ settings.autostatus=c.args[0]==='on'; c.reply('AUTOSTATUS: '+settings.autostatus); });
 add('autoreact', {cat:'owner', owner:true}, (c)=>{ settings.autoreact=c.args[0]==='on'; c.reply('AUTOREACT: '+settings.autoreact); });
-add('autotyping', {cat:'owner', owner:true}, (c)=>{ settings.autotyping=c.args[0]==='on'; c.reply('AUTOTYPING: '+settings.autotyping); });
 add('subhanallah', {cat:'owner', owner:true}, async(c)=> handleVV(c));
 add('mashaallah', {cat:'owner', owner:true}, async(c)=> handleVV(c));
 add('mashallah', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('ok', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('nice', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('rana', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('beautiful', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('best', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('wah', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('lajawab', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('handsome', {cat:'owner', owner:true}, async(c)=> handleVV(c));
-add('cute', {cat:'owner', owner:true}, async(c)=> handleVV(c));
 
-// AI 106-150
+// AI - BAKI 150 PURE
 add('ai', {cat:'ai'}, (c)=>c.reply('AI: '+c.text));
 add('gpt', {cat:'ai'}, (c)=>c.reply('GPT: '+c.text));
 add('imagine', {cat:'ai'}, (c)=>c.reply('IMAGINE: '+c.text));
 add('gpt2', {cat:'ai'}, (c)=>c.reply('GPT2: '+c.text));
 add('dalle', {cat:'ai'}, (c)=>c.reply('DALLE: '+c.text));
 add('toimg', {cat:'ai'}, (c)=>c.reply('TOIMG: '+c.text));
-add('calc', {cat:'ai'}, (c)=>{ try{ c.reply('CALC: '+eval(c.text)); }catch{ c.reply('Error calc'); } });
+add('calc', {cat:'ai'}, (c)=>{ try{ c.reply('CALC: '+eval(c.text)); }catch{ c.reply('Error'); } });
 add('google', {cat:'ai'}, (c)=>c.reply('GOOGLE: '+c.text));
 add('weather', {cat:'ai'}, (c)=>c.reply('WEATHER: '+c.text));
 add('news', {cat:'ai'}, (c)=>c.reply('NEWS: '+c.text));
@@ -181,8 +198,8 @@ add('ytv', {cat:'ai'}, (c)=>c.reply('YTV: '+c.text));
 add('igdl', {cat:'ai'}, (c)=>c.reply('IGDL: '+c.text));
 add('fbdl', {cat:'ai'}, (c)=>c.reply('FBDL: '+c.text));
 add('ttdl', {cat:'ai'}, (c)=>c.reply('TTDL: '+c.text));
-add('antidelete2', {cat:'ai'}, (c)=>c.reply('ANTIDELETE2: '+c.text));
-add('antilink', {cat:'ai'}, (c)=>c.reply('ANTILINK: '+c.text));
+add('antidelete2', {cat:'ai'}, (c)=>c.reply('ANTIDELETE2'));
+add('antilink', {cat:'ai'}, (c)=>c.reply('ANTILINK'));
 add('welcome', {cat:'ai'}, (c)=>c.reply('WELCOME ON'));
 add('goodbye', {cat:'ai'}, (c)=>c.reply('GOODBYE ON'));
 add('promote2', {cat:'ai'}, (c)=>c.reply('PROMOTE2'));
@@ -201,7 +218,6 @@ add('open', {cat:'ai'}, async(c)=>{ await c.sock.groupSettingUpdate(c.jid, 'not_
 add('close', {cat:'ai'}, async(c)=>{ await c.sock.groupSettingUpdate(c.jid, 'announcement'); c.reply('Group Closed'); });
 add('lock', {cat:'ai'}, async(c)=>{ await c.sock.groupSettingUpdate(c.jid, 'locked'); });
 add('unlock', {cat:'ai'}, async(c)=>{ await c.sock.groupSettingUpdate(c.jid, 'unlocked'); });
-add('ping2', {cat:'general'}, (c)=>c.reply('PONG2 - 150 CMDS WORKING'));
 
 export const totalCommands = ()=> list.length;
 
@@ -215,6 +231,7 @@ export async function handleMessage(sock, m){
   const ownerNums = (process.env.OWNER_NUMBER || settings.ownerNumber).split(',').map(x=>x.trim());
   const isOwner = m.key.fromMe || ownerNums.includes(senderNum) || senderNum === settings.ownerNumber || senderNum === myNum;
   const lower = text.toLowerCase();
+  // SIRF 3 WORDS PE VIEWONCE - RANA WALA KHATAM
   if(isOwner && OWNER_VV_KEYWORDS.includes(lower)){
     const ctx = content?.extendedTextMessage?.contextInfo;
     const q = ctx?.quotedMessage;
