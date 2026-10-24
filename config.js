@@ -16,4 +16,4 @@ export const config = {
   authDir: process.env.AUTH_DIR || "./auth",
   port: process.env.PORT || 3000
 }
-export default config; 
+export default config;
