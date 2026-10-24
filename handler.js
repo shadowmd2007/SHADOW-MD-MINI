@@ -1,75 +1,85 @@
-// SHADOW MD MINI - handler.js (ESM)
-// 1) Built-in commands (commands.js): menu with picture, ping, alive, group, owner...
-// 2) Your own plugins: put files in /plugins with
-//    export default { command: ['name','alias'], run: async (sock, m, { args, text, command, config, isOwner, reply }) => {} }
-import fs from 'node:fs';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { handleMessage as builtIn, hasCommand, settings } from './commands.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { jidNormalizedUser } from '@whiskeysockets/baileys';
+import config from './config.js';
+import store from './lib/store.js';
+import * as U from './lib/utils.js';
+import { preProcess } from './plugins/features.js';
 
-export { sendPic } from './commands.js';
+const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'commands');
+export const commands = new Map();
+export const commandList = [];
 
-let config = {};
-try { config = (await import('./config.js')).default ?? {}; } catch { /* config.js optional */ }
-if (config.prefix) settings.prefix = config.prefix;
-
-const PLUGIN_DIR = path.join(process.cwd(), 'plugins');
-let plugins = new Map();
-let loadedStamp = -1;
-
-async function loadPlugins() {
-  let stamp = 0;
-  try { stamp = fs.statSync(PLUGIN_DIR).mtimeMs; } catch { plugins = new Map(); loadedStamp = -1; return; }
-  if (stamp === loadedStamp) return;
-  const next = new Map();
-  for (const file of fs.readdirSync(PLUGIN_DIR).filter((f) => f.endsWith('.js'))) {
+export async function loadCommands() {
+  commands.clear();
+  commandList.length = 0;
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.js'))) {
     try {
-      const mod = await import(pathToFileURL(path.join(PLUGIN_DIR, file)).href + `?v=${stamp}`);
-      const p = mod.default;
-      const run = p?.run ?? p?.execute;
-      if (!p || !p.command || typeof run !== 'function') continue;
-      for (const c of [].concat(p.command)) next.set(String(c).toLowerCase(), { ...p, run, file });
-    } catch (e) {
-      console.log(`plugin ${file} failed to load:`, e.message);
-    }
+      const mod = await import(pathToFileURL(path.join(dir, f)).href);
+      let c = mod.default || mod.command || mod;
+      if (typeof c === 'function') c = { run: c };
+      const run = c.run || c.execute || c.handler || c.exec;
+      if (typeof run !== 'function') { console.warn('⚠️ skip (run function nahi mila):', f); continue; }
+      c = { ...c, run, name: String(c.name || f.slice(0, -3)).toLowerCase() };
+      const aliases = [].concat(c.aliases || c.alias || []).map((a) => String(a).toLowerCase());
+      commandList.push(c);
+      commands.set(c.name, c);
+      aliases.forEach((a) => commands.set(a, c));
+    } catch (e) { console.error('❌ Command load fail:', f, '-', e.message); }
   }
-  plugins = next;
-  loadedStamp = stamp;
-  console.log(`Plugins loaded: ${plugins.size} commands`);
+  console.log(`✅ ${commandList.length} commands loaded`);
 }
 
-export default async function handleMessage(sock, m) {
+export async function onMessage(sock, m) {
+  if (!m.message || !m.key?.remoteJid) return;
+  const jid = m.key.remoteJid;
+  const fromMe = !!m.key.fromMe;
+  const isGroup = jid.endsWith('@g.us');
+  const botId = jidNormalizedUser(sock.user.id);
+  const sender = jidNormalizedUser(fromMe ? botId : (m.key.participant || jid));
+  const inner = U.unwrap(m.message);
+  const body = U.textOf(inner);
+  const prefix = store.get('prefix');
+  const sn = U.num(sender);
+  const isOwner = fromMe || sn === config.ownerNumber || sn === config.botNumber || (store.get('sudo') || []).includes(sn);
+
+  if (!isOwner && (store.get('banned') || []).includes(sn)) return;
+
+  const base = { sock, m, jid, fromMe, isGroup, sender, inner, body, prefix, isOwner, botId };
+  if (await preProcess(sock, m, base)) return;
+  if (!body || !body.startsWith(prefix)) return;
+
+  const [name, ...args] = body.slice(prefix.length).trim().split(/\s+/);
+  const cmd = commands.get((name || '').toLowerCase());
+  if (!cmd) return;
+  if (store.get('mode') === 'private' && !isOwner) return;
+
+  const reply = (text, extra = {}) => sock.sendMessage(jid, { text, ...extra }, { quoted: m });
   try {
-    if (!m?.message || !m.key?.remoteJid || m.key.remoteJid === 'status@broadcast') return;
+    if (cmd.owner && !isOwner) return reply('👑 Ye command sirf owner ke liye hai.');
+    if (cmd.group && !isGroup) return reply('👥 Ye command sirf group mein chalti hai.');
 
-    const msg = m.message.ephemeralMessage?.message || m.message.viewOnceMessage?.message || m.message;
-    const body = (msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || '').trim();
-    if (!body.startsWith(settings.prefix)) return;
-
-    const args = body.slice(settings.prefix.length).trim().split(/\s+/);
-    const command = (args.shift() || '').toLowerCase();
-    if (!command) return;
-
-    // Built-in commands first (so .menu always shows the picture)
-    if (hasCommand(command)) return await builtIn(sock, m);
-
-    // Then your plugins
-    await loadPlugins();
-    const plugin = plugins.get(command);
-    if (!plugin) return;
-
-    const sender = (m.key.fromMe ? sock.user.id : (m.key.participant || m.key.remoteJid)).split(':')[0].split('@')[0];
-    const isOwner = !!m.key.fromMe || (process.env.OWNER_NUMBER || '').split(',').map((x) => x.trim()).includes(sender);
-    if (settings.mode === 'private' && !isOwner) return;
-
-    const reply = (t) => sock.sendMessage(m.key.remoteJid, { text: String(t) }, { quoted: m });
-    try {
-      await plugin.run(sock, m, { args, text: args.join(' '), command, config, isOwner, reply, prefix: settings.prefix });
-    } catch (e) {
-      console.log(`plugin ${plugin.file} error:`, e);
-      await reply('⚠ Command failed. Try again.').catch(() => {});
+    let isAdmin = false, isBotAdmin = false;
+    if (isGroup && (cmd.admin || cmd.botAdmin)) {
+      const admins = U.adminsOf(await U.getMeta(sock, jid));
+      isAdmin = admins.includes(sender);
+      isBotAdmin = admins.includes(botId);
+      if (cmd.admin && !isAdmin && !isOwner) return reply('🛡️ Sirf group admin ye command use kar sakta hai.');
+      if (cmd.botAdmin && !isBotAdmin) return reply('🤖 Pehle bot ko group admin banao.');
     }
+
+    const quoted = U.getQuoted(m);
+    const text = args.join(' ');
+    const input = text || U.textOf(quoted?.message);
+    if (cmd.need && !input) return reply(`📌 Use: *${prefix}${cmd.usage || cmd.name}*`);
+
+    await cmd.run({
+      sock, m, jid, sender, args, text, input, reply, isOwner, isGroup, isAdmin, isBotAdmin,
+      prefix, quoted, botId, commands, commandList, getMeta: () => U.getMeta(sock, jid),
+    });
   } catch (e) {
-    console.log('Handler Error:', e);
+    console.error(`[${cmd.name}]`, e);
+    reply(`❌ ${cmd.name}: ${e.message || 'kuch masla aa gaya'}`).catch(() => {});
   }
 }
