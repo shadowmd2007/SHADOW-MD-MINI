@@ -215,7 +215,7 @@ async function generatePairingCode(num) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       await stopSocket()
-      wipeAuth() // har baar naya saaf session
+      // Preserve auth files unless WhatsApp explicitly reports loggedOut.
       const s = await createSocket()
       await waitReady(s)
       await sleep(1500)
