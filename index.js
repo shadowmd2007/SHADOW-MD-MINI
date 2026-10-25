@@ -1,9 +1,9 @@
 
  // SHADOW-MD-MINI - index.js (FIXED)
- // Fix 1: pairing code ab tab maanga jata hai jab socket sach mein ready ho
- // Fix 2: code ke baad socket restart nahi hota (warna code invalid ho jata tha)
- // Fix 3: pair hone ke baad 515 restart sahi handle hota hai
- // Fix 4: messages.upsert connect kiya - ab bot commands ka reply karta hai
+// Fix 1: pairing code ab tab maanga jata hai jab socket sach mein ready ho
+// Fix 2: code ke baad socket restart nahi hota (warna code invalid ho jata tha)
+// Fix 3: pair hone ke baad 515 restart sahi handle hota hai
+// Fix 4: messages.upsert connect kiya - ab bot commands ka reply karta hai
 import * as baileysNs from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import express from 'express'
@@ -31,7 +31,7 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'silent' })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let sock = null
-let generation = 0 // har naye socket ka number, purane socket ke events ignore karne ke liye
+let generation = 0
 let pairingBusy = false
 let lastPairAt = 0
 let reconnectTimer = null
@@ -41,7 +41,6 @@ const wipeAuth = () => {
   try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }) } catch {}
 }
 
-// creds mein asli pair hua account hai ya sirf adhoori pairing ka placeholder
 const isPaired = (creds) =>
   !!(creds?.registered || (creds?.me?.id && creds.me.name !== '~'))
 
@@ -90,7 +89,7 @@ function scheduleReconnect(ms) {
 }
 
 function onConnection(s, myGen, update) {
-  if (myGen !== generation) return // purana socket, ignore
+  if (myGen !== generation) return
   const { connection, lastDisconnect } = update
 
   if (connection) {
@@ -115,7 +114,6 @@ function onConnection(s, myGen, update) {
     console.log('Connection closed, code:', code)
 
     if (code === DisconnectReason.loggedOut) {
-      // phone se logout hua, session khatam. Dobara pair karna hoga
       wipeAuth()
       sock = null
       status.paired = false
@@ -125,7 +123,6 @@ function onConnection(s, myGen, update) {
     }
 
     if (code === DisconnectReason.restartRequired) {
-      // pairing poori hone ke baad WhatsApp khud restart maangta hai, yeh normal hai
       scheduleReconnect(500)
       return
     }
@@ -133,7 +130,6 @@ function onConnection(s, myGen, update) {
     if (status.paired) {
       scheduleReconnect(3000)
     } else {
-      // abhi pair nahi hua, loop mein socket mat banao, user ka code kharab hoga
       status.connection = 'idle'
     }
   }
@@ -141,14 +137,13 @@ function onConnection(s, myGen, update) {
 
 async function stopSocket() {
   clearTimeout(reconnectTimer)
-  generation++ // purane socket ke saare events ab ignore honge
+  generation++
   const old = sock
   sock = null
   try { old?.end?.(undefined) } catch {}
   await sleep(600)
 }
 
-// socket ka handshake poora hone ka intezar (qr event aane ka matlab socket ready hai)
 function waitReady(s, ms = 12000) {
   return new Promise((resolve, reject) => {
     const done = (fn, arg) => {
@@ -165,18 +160,45 @@ function waitReady(s, ms = 12000) {
   })
 }
 
+function watchPairReject(s, ms = 3500) {
+  return new Promise((resolve) => {
+    const ws = s.ws
+    if (!ws || typeof ws.on !== 'function') return resolve(null)
+    let t
+    const done = (v) => {
+      clearTimeout(t)
+      try { ws.off?.('CB:iq,type:error', on) } catch {}
+      resolve(v)
+    }
+    const on = (node) => {
+      const err = Array.isArray(node?.content) ? node.content.find((n) => n?.tag === 'error') : null
+      done({ code: err?.attrs?.code || '?', text: err?.attrs?.text || 'error' })
+    }
+    t = setTimeout(() => done(null), ms)
+    try { ws.on('CB:iq,type:error', on) } catch { done(null) }
+  })
+}
+
 async function generatePairingCode(num) {
   let lastErr
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       await stopSocket()
-      wipeAuth() // har baar naya saaf session
+      wipeAuth()
       const s = await createSocket()
       await waitReady(s)
       await sleep(1500)
+      const watch = watchPairReject(s)
       const raw = await s.requestPairingCode(num)
+      const rej = await watch
+      if (rej) {
+        const err = new Error(`WhatsApp ne pairing code reject kar diya (error ${rej.code} ${rej.text}). Ye aap ki galti nahi, July 2026 se Baileys ka known masla hai`)
+        err.noRetry = true
+        throw err
+      }
       return String(raw).match(/.{1,4}/g).join('-')
     } catch (e) {
+      if (e.noRetry) throw e
       lastErr = e
       console.log(`Pair attempt ${attempt} fail:`, e.message)
       await sleep(2500)
