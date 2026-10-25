@@ -1,3 +1,4 @@
+
 {
   "name": "shadow-md",
   "version": "1.0.0",
@@ -7,7 +8,7 @@
     "start": "node index.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
