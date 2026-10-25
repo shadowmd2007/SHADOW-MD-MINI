@@ -1,15 +1,23 @@
+// config.js (FIXED) - ab named export `config` bhi hai aur default export bhi.
+// dotenv optional hai: install na ho to bhi crash nahi hoga.
+try {
+  const d = await import('dotenv');
+  (d.default ?? d).config();
+} catch {}
 
-import dotenv from 'dotenv';
-dotenv.config();
+const owner = (process.env.OWNER_NUMBER || '923003719761').split(',')[0].trim();
 
-const config = {
+export const config = {
   botName: "SHADOW MD",
   ownerName: "RANA FURQAN",
-  ownerNumber: "923003719761",
-  botNumber: "923003719761",
+  ownerNumber: owner,
+  botNumber: owner,
   presName: "RANA FURQAN",
+  channelName: "SHADOW MD Channel",
   channelLink: "https://whatsapp.com/channel/0029VbCiT0g8vd1P3dJZqm2J",
+  groupName: "SHADOW MD Group",
   groupLink: "https://chat.whatsapp.com/FGW9EITclIg2obBhZkkVTn",
+  githubRepository: process.env.GITHUB_REPO || "https://whatsapp.com/channel/0029VbCiT0g8vd1P3dJZqm2J",
   menuImage: "https://files.catbox.moe/y04tbj.jpg",
   botImage: "https://files.catbox.moe/y04tbj.jpg",
   prefix: ".",
