@@ -25,6 +25,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let sock
 let starting = false
+let status = { connection: 'none', closeCode: null }
 
 async function startBot() {
   if (starting) return
@@ -51,7 +52,10 @@ async function startBot() {
     sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
-      if (connection) console.log('connection:', connection)
+      if (connection) {
+        console.log('connection:', connection)
+        status.connection = connection
+      }
       if (connection === 'open') {
         console.log('CONNECTED SUCCESSFULLY!')
         try {
@@ -64,6 +68,7 @@ async function startBot() {
       if (connection === 'close') {
         const code = new Boom(lastDisconnect?.error)?.output?.statusCode
         console.log('Connection closed, code:', code)
+        status.closeCode = code ?? 'unknown'
         if (code === DisconnectReason.loggedOut) {
           // session khatam, purani auth hata do taake dobara pair ho sake
           fs.rmSync(AUTH_DIR, { recursive: true, force: true })
@@ -91,6 +96,8 @@ async function resetSession() {
   await wait(3000)
 }
 
+app.get('/status', (req, res) => res.json(status))
+
 app.get('/health', (req, res) => res.send('ok'))
 
 app.get('/', (req, res) => {
@@ -102,7 +109,20 @@ app.get('/', (req, res) => {
       <button onclick="go()" style="padding:12px">Get 8 Letter Code</button>
       <h1 id="c" style="color:green;letter-spacing:5px"></h1>
       <p id="s"></p>
+      <p id="d" style="color:#555;font-size:14px"></p>
       <script>
+        function poll() {
+          let n = 0
+          const t = setInterval(async () => {
+            n++
+            try {
+              const r = await fetch('/status')
+              const j = await r.json()
+              document.getElementById('d').innerText = 'Status: ' + j.connection + ' | close code: ' + j.closeCode
+            } catch (e) {}
+            if (n > 45) clearInterval(t)
+          }, 2000)
+        }
         async function go() {
           const num = document.getElementById('n').value
           document.getElementById('s').innerText = 'Wait...'
@@ -112,6 +132,7 @@ app.get('/', (req, res) => {
             if (j.code) {
               document.getElementById('c').innerText = j.code
               document.getElementById('s').innerText = 'WhatsApp > Linked Devices > Link with phone number'
+              poll()
             } else {
               document.getElementById('s').innerText = j.error || 'Error'
             }
@@ -148,4 +169,4 @@ process.on('uncaughtException', (e) => console.error('uncaughtException:', e))
 app.listen(PORT, '0.0.0.0', () => {
   console.log('Bot Ready on ' + PORT)
   startBot()
-})
+})i
