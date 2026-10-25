@@ -8,7 +8,7 @@ try {
 const owner = (process.env.OWNER_NUMBER || '923003719761').split(',')[0].trim();
 
 export const config = {
-  botName: "SHADOW MD",
+  botName: "SHADOW MD MINI",
   ownerName: "RANA FURQAN",
   ownerNumber: owner,
   botNumber: owner,
