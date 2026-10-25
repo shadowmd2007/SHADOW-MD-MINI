@@ -169,4 +169,4 @@ process.on('uncaughtException', (e) => console.error('uncaughtException:', e))
 app.listen(PORT, '0.0.0.0', () => {
   console.log('Bot Ready on ' + PORT)
   startBot()
-})i
+})
