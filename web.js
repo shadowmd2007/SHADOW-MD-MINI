@@ -1,3 +1,4 @@
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -49,7 +50,7 @@ export default async function(app) {
       let code = await sock.requestPairingCode(phone);
       code = code.match(/.{1,4}/g).join("-");
       console.log("PAIR CODE:", code);
-      
+
       return res.json({ code: code });
 
     } catch (e) {
