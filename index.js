@@ -51,6 +51,7 @@ async function startBot() {
     sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (connection) console.log('connection:', connection)
       if (connection === 'open') {
         console.log('CONNECTED SUCCESSFULLY!')
         try {
@@ -76,6 +77,18 @@ async function startBot() {
   } finally {
     starting = false
   }
+}
+
+async function resetSession() {
+  try {
+    sock?.ev.removeAllListeners('connection.update')
+    sock?.ev.removeAllListeners('creds.update')
+    sock?.end?.(undefined)
+  } catch {}
+  sock = null
+  fs.rmSync(AUTH_DIR, { recursive: true, force: true })
+  await startBot()
+  await wait(3000)
 }
 
 app.get('/health', (req, res) => res.send('ok'))
@@ -115,14 +128,11 @@ app.get('/pair', async (req, res) => {
   const num = String(req.query.number || '').replace(/[^0-9]/g, '')
   if (!num) return res.json({ error: 'Number do' })
   try {
-    if (!sock) {
-      await startBot()
-      await wait(3000)
-    }
-    if (sock.authState.creds.registered) {
+    if (sock?.authState?.creds?.registered) {
       return res.json({ error: 'Bot pehle se connected hai' })
     }
-    await wait(1500)
+    // har baar naya saaf session, taake purani adhoori koshish masla na kare
+    await resetSession()
     const code = await sock.requestPairingCode(num)
     console.log('CODE', code, 'FOR', num)
     res.json({ code })
