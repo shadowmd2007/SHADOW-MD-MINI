@@ -1,6 +1,4 @@
 import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import express from 'express';
 import pino from 'pino';
 import { createRequire } from 'module';
@@ -13,45 +11,41 @@ const fetchLatestBaileysVersion = Baileys.fetchLatestBaileysVersion || Baileys.d
 const makeCacheableSignalKeyStore = Baileys.makeCacheableSignalKeyStore || Baileys.default?.makeCacheableSignalKeyStore;
 const DisconnectReason = Baileys.DisconnectReason || Baileys.default?.DisconnectReason;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json());
 let sockInstance = null;
 
-app.get('/', (req,res)=> res.send('Bot Running - /pair?number=92xxx'));
+app.get('/', (req,res)=> res.send('<h1>FURQAN-MD Ready</h1><a href="/pair?number=923001234567">Pair</a>'));
 app.get('/pair', async (req,res)=>{
  const num = (req.query.number || "").replace(/[^0-9]/g,"");
- if(!num) return res.json({error: "Number do"});
- if(!sockInstance) return res.json({error: "Wait 10 sec"});
+ if(!num) return res.json({error: "Add ?number=923xx"});
+ if(!sockInstance) return res.json({error: "Bot starting, wait 5 sec"});
  try{
    const code = await sockInstance.requestPairingCode(num);
-   return res.json({code});
+   return res.json({code: code, message: "Code WhatsApp me dalo"});
  }catch(e){ return res.json({error: e.message}); }
 });
-app.listen(process.env.PORT || 3000, ()=> console.log('Web on 3000 - Bot Ready'));
+app.listen(process.env.PORT || 3000, ()=> console.log('Bot Ready'));
 
 async function startBot(){
- const authDir = './auth';
- if(!fs.existsSync(authDir)) fs.mkdirSync(authDir, {recursive:true});
- const { state, saveCreds } = await useMultiFileAuthState(authDir);
+ if(!fs.existsSync('./auth')) fs.mkdirSync('./auth', {recursive:true});
+ const { state, saveCreds } = await useMultiFileAuthState('./auth');
  const { version } = await fetchLatestBaileysVersion();
  const sock = makeWASocket({
    version,
    logger: pino({level: 'silent'}),
    printQRInTerminal: false,
-   browser: ["Chrome","Chrome","1.0"],
+   browser: ["FURQAN-MD","Chrome","1.0"],
    auth: makeCacheableSignalKeyStore(state.keys, pino({level:'silent'}))
  });
  sockInstance = sock;
  sock.ev.on('creds.update', saveCreds);
  sock.ev.on('connection.update', (u)=>{
-   if(u.connection === 'open') console.log('CONNECTED!');
+   if(u.connection === 'open') console.log('FURQAN-MD CONNECTED - Ab kuch nahi karna!');
    if(u.connection === 'close' && u.lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) setTimeout(startBot, 3000);
  });
  sock.ev.on('messages.upsert', async (m)=>{
-   const { onMessage } = await import('./handler.js');
-   await onMessage(sock, m);
+   try{ const { onMessage } = await import('./handler.js'); await onMessage(sock, m); }catch{}
  });
 }
 startBot();
