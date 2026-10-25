@@ -1,81 +1,133 @@
-import makeWASocket, { useMultiFileAuthState, makeCacheableSignalKeyStore, DisconnectReason } from '@whiskeysockets/baileys'
+import makeWASocket, {
+  useMultiFileAuthState,
+  makeCacheableSignalKeyStore,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  Browsers
+} from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import express from 'express'
 import pino from 'pino'
+import fs from 'fs'
 
 const app = express()
 const PORT = process.env.PORT || 10000
+const AUTH_DIR = process.env.AUTH_DIR || 'auth'
+const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+
 let sock
+let starting = false
 
 async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState('auth')
-  sock = makeWASocket({
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, pino().child({ level: 'fatal' }))
-    },
-    logger: pino({ level: 'silent' }),
-    printQRInTerminal: false,
-    browser: ['Shadow-MD', 'Chrome', '1.0.0']
-  })
-  sock.ev.on('creds.update', saveCreds)
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update
-    if (connection === 'open') {
-      console.log('CONNECTED SUCCESSFULLY!')
-      try {
-        await sock.sendMessage(sock.user.id, { text: '✅ SHADOW-MD CONNECTED! Bot Online!' })
-      } catch {}
-    }
-    if (connection === 'close') {
-      const code = new Boom(lastDisconnect?.error)?.output?.statusCode
-      if (code !== DisconnectReason.loggedOut) {
-        startBot()
+  if (starting) return
+  starting = true
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+
+    let version
+    try {
+      ;({ version } = await fetchLatestBaileysVersion())
+    } catch {}
+
+    sock = makeWASocket({
+      ...(version ? { version } : {}),
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'fatal' }))
+      },
+      logger: pino({ level: 'silent' }),
+      printQRInTerminal: false,
+      browser: Browsers.ubuntu('Chrome')
+    })
+
+    sock.ev.on('creds.update', saveCreds)
+
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (connection === 'open') {
+        console.log('CONNECTED SUCCESSFULLY!')
+        try {
+          await sock.sendMessage(sock.user.id, {
+            text: '✅ SHADOW-MD CONNECTED! Bot Online!'
+          })
+        } catch {}
       }
-    }
-  })
+
+      if (connection === 'close') {
+        const code = new Boom(lastDisconnect?.error)?.output?.statusCode
+        console.log('Connection closed, code:', code)
+        if (code === DisconnectReason.loggedOut) {
+          // session khatam, purani auth hata do taake dobara pair ho sake
+          fs.rmSync(AUTH_DIR, { recursive: true, force: true })
+        }
+        setTimeout(startBot, 3000)
+      }
+    })
+  } catch (e) {
+    console.error('startBot error:', e)
+    setTimeout(startBot, 5000)
+  } finally {
+    starting = false
+  }
 }
+
+app.get('/health', (req, res) => res.send('ok'))
 
 app.get('/', (req, res) => {
   res.send(`
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <center>
-    <h2>SHADOW-MD PAIR</h2>
-    <input id="n" placeholder="923003719761" style="padding:12px;width:220px">
-    <button onclick="go()" style="padding:12px">Get 8 Letter Code</button>
-    <h1 id="c" style="color:green;letter-spacing:5px"></h1>
-    <p id="s"></p>
-    <script>
-      async function go(){
-        const num=document.getElementById('n').value
-        document.getElementById('s').innerText='Wait...'
-        const r=await fetch('/pair?number='+num)
-        const j=await r.json()
-        if(j.code){document.getElementById('c').innerText=j.code;document.getElementById('s').innerText='Code mil gaya! WhatsApp me dalo - Link with phone number'}
-        else document.getElementById('s').innerText=j.error
-      }
-    </script>
+      <h2>SHADOW-MD PAIR</h2>
+      <input id="n" placeholder="923001234567" style="padding:12px;width:220px">
+      <button onclick="go()" style="padding:12px">Get 8 Letter Code</button>
+      <h1 id="c" style="color:green;letter-spacing:5px"></h1>
+      <p id="s"></p>
+      <script>
+        async function go() {
+          const num = document.getElementById('n').value
+          document.getElementById('s').innerText = 'Wait...'
+          try {
+            const r = await fetch('/pair?number=' + num)
+            const j = await r.json()
+            if (j.code) {
+              document.getElementById('c').innerText = j.code
+              document.getElementById('s').innerText = 'WhatsApp > Linked Devices > Link with phone number'
+            } else {
+              document.getElementById('s').innerText = j.error || 'Error'
+            }
+          } catch (e) {
+            document.getElementById('s').innerText = 'Error: ' + e.message
+          }
+        }
+      </script>
     </center>
   `)
 })
 
 app.get('/pair', async (req, res) => {
-  let num = (req.query.number || '').replace(/[^0-9]/g, '')
+  const num = String(req.query.number || '').replace(/[^0-9]/g, '')
   if (!num) return res.json({ error: 'Number do' })
   try {
     if (!sock) {
       await startBot()
-      await new Promise(r => setTimeout(r, 3000))
+      await wait(3000)
     }
-    let code = await sock.requestPairingCode(num)
+    if (sock.authState.creds.registered) {
+      return res.json({ error: 'Bot pehle se connected hai' })
+    }
+    await wait(1500)
+    const code = await sock.requestPairingCode(num)
     console.log('CODE', code, 'FOR', num)
     res.json({ code })
   } catch (e) {
     console.error(e)
-    res.json({ error: e.message })
+    res.status(500).json({ error: e.message })
   }
 })
 
-app.listen(PORT, () => {
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e))
+process.on('uncaughtException', (e) => console.error('uncaughtException:', e))
+
+app.listen(PORT, '0.0.0.0', () => {
   console.log('Bot Ready on ' + PORT)
   startBot()
 })
