@@ -1,14 +1,22 @@
-import makeWASocket, {
+import * as baileysNs from '@whiskeysockets/baileys'
+import { Boom } from '@hapi/boom'
+import express from 'express'
+import pino from 'pino'
+import fs from 'fs'
+
+// Baileys ke alag alag versions alag tareeqe se export karte hain, isliye dono tareeqe handle kiye
+const B = baileysNs.useMultiFileAuthState ? baileysNs : (baileysNs.default ?? baileysNs)
+const makeWASocket =
+  typeof baileysNs.default === 'function' ? baileysNs.default
+  : typeof B.default === 'function' ? B.default
+  : B.makeWASocket ?? baileysNs.makeWASocket
+const {
   useMultiFileAuthState,
   makeCacheableSignalKeyStore,
   DisconnectReason,
   fetchLatestBaileysVersion,
   Browsers
-} from '@whiskeysockets/baileys'
-import { Boom } from '@hapi/boom'
-import express from 'express'
-import pino from 'pino'
-import fs from 'fs'
+} = B
 
 const app = express()
 const PORT = process.env.PORT || 10000
