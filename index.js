@@ -3,13 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import pino from 'pino';
-import makeWASocket, {
-useMultiFileAuthState,
-fetchLatestBaileysVersion,
-Browsers,
-makeCacheableSignalKeyStore,
-DisconnectReason
-} from '@whiskeysockets/baileys';
+import pkg from '@whiskeysockets/baileys';
+const { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, DisconnectReason } = pkg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,7 +27,7 @@ app.get('/pair', async (req,res)=>{
  }
 });
 
-app.listen(process.env.PORT || 3000, ()=> console.log('Web on 3000'));
+app.listen(process.env.PORT || 3000, ()=> console.log('Web on 3000 - FURQANMD READY'));
 
 async function startBot(){
  const authDir = './auth';
@@ -53,39 +48,18 @@ async function startBot(){
    const { connection, lastDisconnect } = update;
    if(connection === 'open'){
      console.log('FURQAN-MD CONNECTED!');
-     const count = await loadCommands();
-     console.log(`${count} Commands Loaded - API Full Working`);
    }
    if(connection === 'close'){
-     const code = lastDisconnect?.error?.output?.statusCode;
-     if(code !== DisconnectReason.loggedOut){
-       fs.rmSync(authDir, {recursive:true, force:true});
+     if(lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut){
        setTimeout(startBot, 3000);
      }
    }
  });
 
  sock.ev.on('messages.upsert', async (m)=>{
-   try{
-     const { onMessage } = await import('./handler.js');
-     await onMessage(sock, m);
-   }catch(e){ console.log('Msg error:', e.message); }
+   const { onMessage } = await import('./handler.js');
+   await onMessage(sock, m);
  });
-
- // YAHI FIX HAI - YE LINE TUMHARI FILE ME MISSING THI
- sock.ev.on('messages.update', async (updates)=>{
-   try{
-     const { onDelete } = await import('./handler.js');
-     await onDelete(sock, updates);
-   }catch(e){ console.log('Delete error:', e.message); }
- });
-}
-
-async function loadCommands(){
- try{
-   const { commands } = await import('./commands.js');
-   return Object.keys(commands || {}).length;
- }catch{ return 150; }
 }
 
 startBot();
