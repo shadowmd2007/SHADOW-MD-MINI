@@ -2,6 +2,7 @@
 // Ye file khud koi command nahi rakhti. commands/ folder ki har file ek command (ya kuch commands) hoti hai,
 // yahan unhe naam se register karke message aane par naam dekh kar sahi file chalayi jati hai.
 
+
 // Command file ka format:   export const command = { name, aliases?, category?, owner?, group?, run: async (ctx) => {} }
 // (ek file mein kai commands ho to:  export const commands = [ {...}, {...} ])
 import fs from 'fs';
@@ -18,7 +19,6 @@ const normalizeMessageContent = B('normalizeMessageContent');
 export { settings };
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'commands');
-const OWNER_VV_KEYWORDS = ['subhanallah', 'mashaallah', 'mashallah'];
 const CAT = { MAIN: 'general', UTILITY: 'general' }; // baaki categories jaisi hain waisi (lowercase)
 
 export let commands = new Map(); // naam/alias -> command
@@ -46,7 +46,7 @@ export async function loadCommands(bust = false) {
         const entry = {
           name,
           cat: CAT[cat.toUpperCase()] || cat.toLowerCase(),
-          owner: !!d.owner,
+          owner: !!d.owner || String(d.category || '').toLowerCase() === 'owner',
           group: !!d.group,
           desc: d.description || '',
           file: f,
@@ -87,26 +87,15 @@ export async function handleMessage(sock, m) {
 
   const senderJid = jidNormalizedUser(m.key.participant || jid);
   const senderNum = senderJid.split('@')[0];
-  const myNum = jidNormalizedUser(sock.user.id).split('@')[0];
+  const myNum = jidNormalizedUser(sock.user?.id || '').split('@')[0];
   const ownerNums = (process.env.OWNER_NUMBER || settings.ownerNumber).split(',').map((x) => x.trim());
   const isOwner = m.key.fromMe || ownerNums.includes(senderNum) || senderNum === settings.ownerNumber || senderNum === myNum;
 
-  // owner "subhanallah / mashaallah" likhe to view-once reply khul jata hai
-  const lower = text.toLowerCase();
-  if (isOwner && OWNER_VV_KEYWORDS.includes(lower)) {
-    const q = content?.extendedTextMessage?.contextInfo?.quotedMessage;
-    if (q) {
-      const vo = q?.viewOnceMessage?.message || q?.viewOnceMessageV2?.message || q?.viewOnceMessageV2Extension?.message || q;
-      const inner = Object.values(vo)[0] || vo;
-      if (inner?.imageMessage) { await sock.sendMessage(jid, { image: inner.imageMessage, caption: lower.toUpperCase() }, { quoted: m }).catch(() => {}); return; }
-      if (inner?.videoMessage) { await sock.sendMessage(jid, { video: inner.videoMessage }, { quoted: m }).catch(() => {}); return; }
-      if (inner?.audioMessage) { await sock.sendMessage(jid, { audio: inner.audioMessage, ptt: true }, { quoted: m }).catch(() => {}); return; }
-    }
-  }
-
   // command ka naam dekho
   if (!text.startsWith(settings.prefix)) return;
-  const [rawName, ...args] = text.slice(settings.prefix.length).trim().split(/\s+/);
+  const commandText = text.slice(settings.prefix.length).trim();
+  if (!commandText) return;
+  const [rawName, ...args] = commandText.split(/\s+/);
   const cmd = commands.get(rawName.toLowerCase());
   if (!cmd) return;
   if (settings.mode === 'private' && !isOwner) return;
