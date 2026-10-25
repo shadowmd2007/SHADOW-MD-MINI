@@ -38,7 +38,7 @@ export async function loadCommands(bust = false) {
     try {
       const mod = await import(pathToFileURL(path.join(DIR, f)).href + stamp);
       if (mod.aliases && typeof mod.aliases === 'object') aliasMaps.push(mod.aliases);
-      const defs = [mod.command, ...(Array.isArray(mod.commands) ? mod.commands : [])].filter(Boolean);
+      const defs = [mod.command, mod.default, ...(Array.isArray(mod.commands) ? mod.commands : [])].filter((d) => d && typeof d === 'object');
       for (const d of defs) {
         if (typeof d.name !== 'string' || typeof d.run !== 'function' || d.hidden) continue;
         const name = d.name.toLowerCase();
