@@ -3,8 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import pino from 'pino';
-import pkg from '@whiskeysockets/baileys';
-const { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, DisconnectReason } = pkg;
+import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, DisconnectReason } from '@whiskeysockets/baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,7 +30,7 @@ app.listen(process.env.PORT || 3000, ()=> console.log('Web on 3000 - FURQANMD RE
 
 async function startBot(){
  const authDir = './auth';
- fs.mkdirSync(authDir, {recursive:true});
+ if(!fs.existsSync(authDir)) fs.mkdirSync(authDir, {recursive:true});
  const { state, saveCreds } = await useMultiFileAuthState(authDir);
  const { version } = await fetchLatestBaileysVersion();
  const sock = makeWASocket({
@@ -50,15 +49,16 @@ async function startBot(){
      console.log('FURQAN-MD CONNECTED!');
    }
    if(connection === 'close'){
-     if(lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut){
-       setTimeout(startBot, 3000);
-     }
+     const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+     if(shouldReconnect) setTimeout(startBot, 3000);
    }
  });
 
  sock.ev.on('messages.upsert', async (m)=>{
-   const { onMessage } = await import('./handler.js');
-   await onMessage(sock, m);
+   try{
+     const { onMessage } = await import('./handler.js');
+     await onMessage(sock, m);
+   }catch(e){ console.log('Msg error:', e.message); }
  });
 }
 
