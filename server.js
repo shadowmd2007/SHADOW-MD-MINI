@@ -22,6 +22,7 @@ function createServer({ config, manager, logger }) {
     );
     next();
   });
+
   app.use(express.json({ limit: '2kb' }));
 
   // ---- very small in-memory rate limiter for starting pairings ----
@@ -36,6 +37,7 @@ function createServer({ config, manager, logger }) {
     hits.set(req.ip, arr);
     next();
   };
+
   const gc = setInterval(() => {
     const now = Date.now();
     for (const [ip, arr] of hits) if (!arr.some((t) => now - t < 60000)) hits.delete(ip);
