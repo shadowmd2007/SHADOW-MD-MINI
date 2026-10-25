@@ -1,7 +1,7 @@
 // SHADOW-MD-MINI - index.js (FIXED)
-// Fix 1: pairing code ab tab maanga jata hai jab socket sach mein ready ho
-// Fix 2: code ke baad socket restart nahi hota (warna code invalid ho jata tha)
-// Fix 3: pair hone ke baad 515 restart sahi handle hota hai
+// Fix 1: pairing code socket ready hone ke baad maanga jata hai
+// Fix 2: pairing ke baad registered auth preserve hota hai
+// Fix 3: pairing ke baad early disconnect par reconnect hota hai
 // Fix 4: messages.upsert connect kiya - ab bot commands ka reply karta hai
 import * as baileysNs from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
@@ -32,9 +32,10 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'silent' })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let sock = null
-let generation = 0 // har naye socket ka number, purane socket ke events ignore karne ke liye
+let generation = 0
 let pairingBusy = false
 let lastPairAt = 0
+let authRegistered = false
 let reconnectTimer = null
 const status = { connection: 'idle', paired: false, closeCode: null, number: null }
 
@@ -42,12 +43,9 @@ const wipeAuth = () => {
   try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }) } catch {}
 }
 
-// creds mein asli pair hua account hai ya sirf adhoori pairing ka placeholder
 const isPaired = (creds) =>
   !!(creds?.registered || (creds?.me?.id && creds.me.name !== '~'))
 
-// WhatsApp purane version ko 405 se reject kar deta hai (QR/code banne se pehle hi connection band).
-// Isliye version seedha WhatsApp Web se lete hain. Zaroorat ho to env WA_VERSION=2,3000,1234567890 se zabardasti set karo.
 let versionCache = null
 async function getWaVersion() {
   const env = String(process.env.WA_VERSION || '').split(',').map((x) => parseInt(x, 10))
@@ -69,6 +67,8 @@ async function getWaVersion() {
 async function createSocket() {
   const myGen = ++generation
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+  authRegistered = !!state.creds?.registered
+  if (authRegistered) status.paired = true
 
   const version = await getWaVersion()
 
@@ -86,8 +86,10 @@ async function createSocket() {
   })
   sock = s
 
-  s.ev.on('creds.update', () => {
-    if (myGen === generation) saveCreds()
+  s.ev.on('creds.update', async () => {
+    if (myGen !== generation) return
+    try { await saveCreds() } catch (e) { console.error('save creds error:', e.message) }
+    if (state.creds?.registered) status.paired = true
   })
 
   s.ev.on('messages.upsert', (upsert) => {
@@ -110,7 +112,7 @@ function scheduleReconnect(ms) {
 }
 
 function onConnection(s, myGen, update) {
-  if (myGen !== generation) return // purana socket, ignore
+  if (myGen !== generation) return
   const { connection, lastDisconnect } = update
 
   if (connection) {
@@ -135,8 +137,8 @@ function onConnection(s, myGen, update) {
     console.log('Connection closed, code:', code)
 
     if (code === DisconnectReason.loggedOut) {
-      // phone se logout hua, session khatam. Dobara pair karna hoga
       wipeAuth()
+      authRegistered = false
       sock = null
       status.paired = false
       status.connection = 'idle'
@@ -145,30 +147,35 @@ function onConnection(s, myGen, update) {
     }
 
     if (code === DisconnectReason.restartRequired) {
-      // pairing poori hone ke baad WhatsApp khud restart maangta hai, yeh normal hai
       scheduleReconnect(500)
       return
     }
 
-    if (status.paired) {
-      scheduleReconnect(3000)
+    if (status.paired || isRegisteredAuth()) {
+      status.paired = true
+      scheduleReconnect(code === 408 || code === 428 ? 1500 : 3000)
     } else {
-      // abhi pair nahi hua, loop mein socket mat banao, user ka code kharab hoga
       status.connection = 'idle'
     }
   }
 }
 
+function isRegisteredAuth() {
+  try {
+    const raw = fs.readFileSync(`${AUTH_DIR}/creds.json`, 'utf8')
+    return !!JSON.parse(raw)?.registered
+  } catch { return false }
+}
+
 async function stopSocket() {
   clearTimeout(reconnectTimer)
-  generation++ // purane socket ke saare events ab ignore honge
+  generation++
   const old = sock
   sock = null
   try { old?.end?.(undefined) } catch {}
   await sleep(600)
 }
 
-// socket ka handshake poora hone ka intezar (qr event aane ka matlab socket ready hai)
 function waitReady(s, ms = 12000) {
   return new Promise((resolve, reject) => {
     const done = (fn, arg) => {
@@ -189,8 +196,6 @@ function waitReady(s, ms = 12000) {
   })
 }
 
-// requestPairingCode sirf request bhejta hai, WhatsApp ka jawab baad mein aata hai.
-// Agar WhatsApp reject kar de (iq error) to jhoota code dikhane ke bajaye saaf error dikhao.
 function watchPairReject(s, ms = 3500) {
   return new Promise((resolve) => {
     const ws = s.ws
@@ -211,31 +216,18 @@ function watchPairReject(s, ms = 3500) {
 }
 
 async function generatePairingCode(num) {
-  let lastErr
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await stopSocket()
-      // Preserve auth files unless WhatsApp explicitly reports loggedOut.
-      const s = await createSocket()
-      await waitReady(s)
-      await sleep(1500)
-      const watch = watchPairReject(s)
-      const raw = await s.requestPairingCode(num)
-      const rej = await watch
-      if (rej) {
-        const err = new Error(`WhatsApp ne pairing code reject kar diya (error ${rej.code} ${rej.text}). Ye aap ki galti nahi, July 2026 se Baileys ka known masla hai`)
-        err.noRetry = true
-        throw err
-      }
-      return String(raw).match(/.{1,4}/g).join('-')
-    } catch (e) {
-      if (e.noRetry) throw e
-      lastErr = e
-      console.log(`Pair attempt ${attempt} fail:`, e.message)
-      await sleep(2500)
-    }
+  await stopSocket()
+  const s = await createSocket()
+  await waitReady(s)
+  await sleep(1200)
+
+  const watch = watchPairReject(s)
+  const raw = await s.requestPairingCode(num)
+  const rej = await watch
+  if (rej) {
+    throw new Error(`WhatsApp ne pairing request reject ki (error ${rej.code} ${rej.text}). Kuch dair ruk kar dobara koshish karein.`)
   }
-  throw lastErr
+  return String(raw).match(/.{1,4}/g).join('-')
 }
 
 const app = express()
@@ -317,17 +309,17 @@ app.get('/pair', async (req, res) => {
   if (num.length < 8 || num.length > 15) {
     return res.json({ error: 'Number sahi likho: country code ke saath, + aur 0 ke baghair (923001234567)' })
   }
-  if (status.paired && status.connection === 'open') {
+  if ((status.paired || authRegistered) && status.connection === 'open') {
     return res.json({ error: 'Bot pehle se connected hai. Dobara pair karne ke liye phone se Linked Devices mein is bot ko logout karo.' })
   }
   if (pairingBusy) return res.json({ error: 'Pehli request abhi chal rahi hai, thora wait karo' })
-  if (Date.now() - lastPairAt < 8000) return res.json({ error: '10 second baad dobara try karo' })
+  const waitMs = 60_000 - (Date.now() - lastPairAt)
+  if (waitMs > 0) return res.status(429).json({ error: `Pairing requests ke darmiyan ${Math.ceil(waitMs / 1000)} seconds wait karo. Baar-baar request se WhatsApp temporary limit laga sakta hai.` })
 
   pairingBusy = true
   lastPairAt = Date.now()
   try {
     const code = await generatePairingCode(num)
-    console.log('CODE', code, 'FOR', num)
     res.json({ code })
   } catch (e) {
     console.error('pair error:', e.message)
@@ -348,6 +340,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     if (isPaired(state.creds)) {
       console.log('Purana session mila, connect ho raha hai...')
       status.paired = true
+      authRegistered = true
       await createSocket()
     } else {
       console.log('Koi session nahi. Website kholo aur number se pair karo.')
