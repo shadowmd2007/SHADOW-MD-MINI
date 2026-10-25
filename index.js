@@ -3,7 +3,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import pino from 'pino';
-import makeWASocket, { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, DisconnectReason } from '@whiskeysockets/baileys';
+import Baileys from '@whiskeysockets/baileys';
+
+const makeWASocket = Baileys.default || Baileys.makeWASocket;
+const { useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, DisconnectReason } = Baileys;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,14 +22,13 @@ app.get('/pair', async (req,res)=>{
  if(!sockInstance) return res.json({error: "Bot not started, wait 10s"});
  try{
    const code = await sockInstance.requestPairingCode(num);
-   console.log('FURQAN-MD PAIR CODE:', code);
-   return res.json({code, bot: "FURQAN-MD"});
+   return res.json({code});
  }catch(e){
    return res.json({error: e.message});
  }
 });
 
-app.listen(process.env.PORT || 3000, ()=> console.log('Web on 3000 - FURQANMD READY'));
+app.listen(process.env.PORT || 3000, ()=> console.log('Web on 3000'));
 
 async function startBot(){
  const authDir = './auth';
@@ -37,28 +39,24 @@ async function startBot(){
    version,
    logger: pino({level: 'silent'}),
    printQRInTerminal: false,
-   browser: ["FURQAN-MD", "Chrome", "1.0"],
+   browser: ["Chrome", "Chrome", "1.0"],
    auth: makeCacheableSignalKeyStore(state.keys, pino({level:'silent'}))
  });
  sockInstance = sock;
  sock.ev.on('creds.update', saveCreds);
  
- sock.ev.on('connection.update', async (update)=>{
-   const { connection, lastDisconnect } = update;
-   if(connection === 'open'){
-     console.log('FURQAN-MD CONNECTED!');
-   }
-   if(connection === 'close'){
-     const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-     if(shouldReconnect) setTimeout(startBot, 3000);
+ sock.ev.on('connection.update', async (u)=>{
+   if(u.connection === 'open') console.log('CONNECTED!');
+   if(u.connection === 'close'){
+     if(u.lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut){
+       setTimeout(startBot, 3000);
+     }
    }
  });
 
  sock.ev.on('messages.upsert', async (m)=>{
-   try{
-     const { onMessage } = await import('./handler.js');
-     await onMessage(sock, m);
-   }catch(e){ console.log('Msg error:', e.message); }
+   const { onMessage } = await import('./handler.js');
+   await onMessage(sock, m);
  });
 }
 
