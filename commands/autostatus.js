@@ -1,0 +1,1 @@
+module.exports={name:'autostatus',async execute({args,reply,setSetting}){const v=(args[0]||'').toLowerCase();if(!['on','off'].includes(v))return reply('Use .autostatus on/off');await setSetting('autostatus',v==='on');return reply('Auto status setting '+(v==='on'?'enabled ❤️💖💕':'disabled'));}};
