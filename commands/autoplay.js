@@ -1,23 +1,19 @@
 export const command = {
   name: 'autoplay',
-  aliases: ['aplay', 'auto-play'],
+  aliases: ['aplay'],
   category: 'settings',
-  description: 'Toggle autoplay',
-  run: async ({ sock, jid, m, args, reply }) => {
-    try {
-      const input = args[0]?.toLowerCase();
-      
-      if (!input || (input !== 'on' && input !== 'off')) {
-        return await reply(
-`╭━━━━━━━━━━━━━━━━━━━╮
-┃  🌹 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃 🌹  ┃
-╰━━━━━━━━━━━━━━━━━━━╯
-
-*Autoplay Settings*
-
-Usage:
-.autoplay on - Enable Autoplay
-.autoplay off - Disable Autoplay
-
-╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃
+  description: 'Autoplay toggle - POWERED BY MERI JAAN',
+  run: async ({ reply, args }) => {
+    const input = args[0];
+    if (!input) {
+      return await reply("Usage: .autoplay on / .autoplay off\n\nPOWERED BY MERI JAAN");
+    }
+    if (input === 'on') {
+      return await reply("Autoplay ON ✅\n\nPOWERED BY MERI JAAN");
+    }
+    if (input === 'off') {
+      return await reply("Autoplay OFF ❌\n\nPOWERED BY MERI JAAN");
+    }
+    return await reply("Use .autoplay on or off\n\nPOWERED BY MERI JAAN");
+  }
+};
