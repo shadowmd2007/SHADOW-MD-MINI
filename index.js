@@ -1,11 +1,21 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import express from 'express';
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from '@whiskeysockets/baileys';
 import P from 'pino';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// --- FIX FOR RAILWAY 502 - Website Server ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => {
+  res.send(`<h1>🌹 RANA FURQAN MD ONLINE 🌹</h1><h3>Bot Status: ✅ Connected</h3><p>Powered By RANA KI JAAN</p>`);
+});
+app.listen(PORT, () => console.log(`🌐 Server Live on ${PORT}`));
+// --- END FIX ---
 
 global.messageStore = new Map();
 global.commands = new Map();
@@ -41,13 +51,9 @@ async function onMessage(sock, upsert) {
     const cmdName = args.shift().toLowerCase();
     const command = global.commands.get(cmdName);
     if (!command) return;
-    const ctx = {
-      sock, jid: from, m: msg, args, prefix,
-      sender: from.endsWith('@g.us') ? msg.key.participant : from,
-      reply: async (txt) => await sock.sendMessage(from, { text: txt }, { quoted: msg })
-    };
+    const ctx = { sock, jid: from, m: msg, args, prefix, sender: from.endsWith('@g.us') ? msg.key.participant : from, reply: async (txt) => await sock.sendMessage(from, { text: txt }, { quoted: msg }) };
     await command.run(ctx);
-  } catch (e) { console.log(e.message); }
+  } catch (e) {}
 }
 
 async function startBot() {
@@ -60,10 +66,8 @@ async function startBot() {
     printQRInTerminal: true,
     browser: ['RANA FURQAN MD', 'Chrome', '1.0.0']
   });
-
   await loadCommands();
   sock.ev.on('creds.update', saveCreds);
-
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
@@ -71,78 +75,36 @@ async function startBot() {
       if (shouldReconnect) startBot();
     } else if (connection === 'open') {
       console.log('✅ RANA FURQAN MD CONNECTED');
-      
-      // ===== CONNECT DP ONLY PERSONAL - RANA FURQAN MD =====
       try {
         let botPpUrl;
-        try { botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image'); } 
-        catch { botPpUrl = 'https://files.catbox.moe/y04tbj.jpg'; }
-
+        try { botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image'); } catch { botPpUrl = 'https://files.catbox.moe/y04tbj.jpg'; }
         let ownerJid = null;
-        if (fs.existsSync('./data/antidelete.json')) {
-          const db = JSON.parse(fs.readFileSync('./data/antidelete.json'));
-          ownerJid = db.ownerJid;
-        }
-        if (!ownerJid && process.env.OWNER_NUMBER) {
-          ownerJid = process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-        }
-
+        if (fs.existsSync('./data/antidelete.json')) ownerJid = JSON.parse(fs.readFileSync('./data/antidelete.json')).ownerJid;
+        if (!ownerJid && process.env.OWNER_NUMBER) ownerJid = process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         if (ownerJid) {
-          const pkgVer = fs.existsSync('./package.json') ? JSON.parse(fs.readFileSync('./package.json')).version : '2.0.0';
-          const mode = process.env.MODE || 'PUBLIC';
-          const prefix = process.env.PREFIX || '.';
-
           const connectText = `╭━━━━━━━━━━━━━━━━━━━╮
 ┃  🌹 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃 🌹  ┃
 ╰━━━━━━━━━━━━━━━━━━━╯
 
-╭───❀ 🌹 ❀───╮
-   💖 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐍 💖
-╰───❀ 🌹 ❀───╯
+✅ *BOT CONNECTED!*
+Bot Name: RANA FURQAN MD
+Status: ONLINE ✅
 
-✅ *𝐁𝐎𝐓 𝐂𝐎𝐍𝐍𝐄𝐂𝐓𝐄𝐃 𝐒𝐔𝐂𝐂𝐄𝐒𝐒𝐅𝐔𝐋𝐋𝐘!*
+Type .menu
 
-╭━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃  🌹 𝐁𝐎𝐓 𝐈𝐍𝐅𝐎 🌹  ┃
-╰━━━━━━━━━━━━━━━━━━━━━━━━╯
-
-┏━━━━━━━━━━━━━━━━━━┓
-┃  🔰 𝐁𝐎𝐓 𝐍𝐀𝐌𝐄 : 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃
-┃  🔰 𝐕𝐄𝐑𝐒𝐈𝐎𝐍 : ${pkgVer}
-┃  🔰 𝐌𝐎𝐃𝐄 : ${mode.toUpperCase()}
-┃  🔰 𝐏𝐑𝐄𝐅𝐈𝐗 : ${prefix}
-┃  🔰 𝐒𝐓𝐀𝐓𝐔𝐒 : 𝐎𝐍𝐋𝐈𝐍𝐄 ✅
-┃  🔰 𝐎𝐖𝐍𝐄𝐑 : 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍
-┗━━━━━━━━━━━━━━━━━━┛
-
-*Bot is now ready!*
-Type ${prefix}menu
-
-╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
-   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
-   💖 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐀𝐍 💖
-╰───❀ 🌹 ❀───╯`;
-
+POWERED BY RANA KI JAAN`;
           await sock.sendMessage(ownerJid, { image: { url: botPpUrl }, caption: connectText });
         }
-      } catch (e) { console.log('Connect DP error:', e.message); }
+      } catch {}
     }
   });
-
   sock.ev.on('messages.upsert', async (upsert) => {
     if (upsert.type !== 'notify') return;
     const msg = upsert.messages?.[0];
     if (!msg) return;
-
-    // ANTIDELETE ONLY PERSONAL
     try {
       if (msg && !msg.key.fromMe && msg.message && !msg.message.protocolMessage) {
-        global.messageStore.set(msg.key.id, {
-          jid: msg.key.remoteJid, message: msg.message,
-          participant: msg.key.participant || msg.key.remoteJid,
-          pushName: msg.pushName || 'Unknown', time: new Date().toLocaleString()
-        });
+        global.messageStore.set(msg.key.id, { jid: msg.key.remoteJid, message: msg.message, participant: msg.key.participant || msg.key.remoteJid, pushName: msg.pushName || 'Unknown' });
       }
       if (msg.message?.protocolMessage?.type === 0) {
         const dbPathAD = './data/antidelete.json';
@@ -152,32 +114,13 @@ Type ${prefix}menu
             const stored = global.messageStore.get(msg.message.protocolMessage.key?.id);
             if (stored) {
               const deleterJid = msg.key.participant || msg.participant || msg.key.remoteJid;
-              const deleterNum = deleterJid.split('@')[0];
-              const senderNum = stored.participant.split('@')[0];
-              const alertText = `╭───❀ 🌹 ❀───╮
-   🌹 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃 🌹
-╰───❀ 🌹 ❀───╯
-
-🚨 *DELETED ALERT*
-
-*Delete By:* ${deleterNum}
-https://wa.me/${deleterNum}
-Name: ${msg.pushName || 'Unknown'}
-
-*Original Sender:* ${senderNum}
-https://wa.me/${senderNum}
-Name: ${stored.pushName}
-
-POWERED BY RANA KI JAAN`;
-              await sock.sendMessage(dbAD.ownerJid, { text: alertText });
+              await sock.sendMessage(dbAD.ownerJid, { text: `🚨 DELETED by ${deleterJid.split('@')[0]} https://wa.me/${deleterJid.split('@')[0]}` });
               try { await sock.sendMessage(dbAD.ownerJid, stored.message); } catch {}
-              global.messageStore.delete(msg.message.protocolMessage.key?.id);
             }
           }
         }
       }
     } catch {}
-
     await onMessage(sock, upsert);
   });
 }
