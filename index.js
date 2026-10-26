@@ -1,8 +1,4 @@
-// SHADOW-MD-MINI - index.js (FIXED)
-// Fix 1: pairing code socket ready hone ke baad maanga jata hai
-// Fix 2: pairing ke baad registered auth preserve hota hai
-// Fix 3: pairing ke baad early disconnect par reconnect hota hai
-// Fix 4: messages.upsert connect kiya - ab bot commands ka reply karta hai
+// SHADOW-MD-MINI - index.js (FIXED + AUTO REACT)
 import * as baileysNs from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import express from 'express'
@@ -92,8 +88,26 @@ async function createSocket() {
     if (state.creds?.registered) status.paired = true
   })
 
-  s.ev.on('messages.upsert', (upsert) => {
+  s.ev.on('messages.upsert', async (upsert) => {
     if (myGen !== generation || upsert.type !== 'notify') return
+
+    // --- AUTO REACT SYSTEM START 🌹 ---
+    try {
+      const dbPath = './data/autoreact.json';
+      if (fs.existsSync(dbPath)) {
+        const db = JSON.parse(fs.readFileSync(dbPath));
+        if (db.enabled) {
+          const msg = upsert.messages?.[0];
+          if (msg?.key) {
+            const emojis = ['❤️', '🌹', '💖', '🔥', '😍', '🥰', '💯', '✨', '😘'];
+            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+            await s.sendMessage(msg.key.remoteJid, { react: { text: randomEmoji, key: msg.key } });
+          }
+        }
+      }
+    } catch (e) {}
+    // --- AUTO REACT SYSTEM END 🌹 ---
+
     onMessage(s, upsert).catch((e) => console.log('handler error:', e.message))
   })
 
