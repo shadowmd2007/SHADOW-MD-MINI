@@ -1,4 +1,3 @@
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const makeWASocket = pkg.default || pkg;
+
 const {
   useMultiFileAuthState,
   Browsers,
@@ -31,25 +31,28 @@ export default async function (app) {
       .replace(/\D/g, '');
 
     if (!number) {
-      return res.sendFile(path.join(__dirname, 'index.html'));
+      return res.sendFile(
+        path.join(__dirname, 'index.html')
+      );
     }
 
     if (number.length < 10 || number.length > 15) {
       return res.status(400).json({
-        error: 'Phone number galat hai. Country code ke saath likho.'
+        error:
+          'Phone number galat hai. Country code ke saath likho.'
       });
     }
 
     if (pairingInProgress) {
       return res.status(429).json({
-        error: 'Pairing already in progress. Thori dair baad try karo.'
+        error:
+          'Pairing already in progress. Thori dair baad try karo.'
       });
     }
 
     pairingInProgress = true;
 
     try {
-      // Existing session ko delete NAHI karna.
       fs.mkdirSync(AUTH, { recursive: true });
 
       const { state, saveCreds } =
@@ -58,7 +61,8 @@ export default async function (app) {
       if (state.creds.registered) {
         return res.json({
           status: 'connected',
-          message: 'Session pehle se registered hai. Dobara pairing ki zaroorat nahi.'
+          message:
+            'Session pehle se registered hai. Dobara pairing ki zaroorat nahi.'
         });
       }
 
@@ -80,21 +84,32 @@ export default async function (app) {
         const { connection, lastDisconnect } = update;
 
         if (connection === 'open') {
-          console.log('WhatsApp connected successfully.');
+          console.log(
+            'WhatsApp connected successfully.'
+          );
         }
 
         if (connection === 'close') {
           const statusCode =
             lastDisconnect?.error?.output?.statusCode;
 
-          console.log('WhatsApp connection closed:', statusCode);
+          console.log(
+            'WhatsApp connection closed:',
+            statusCode
+          );
 
-          if (
-            statusCode !== DisconnectReason.loggedOut &&
-            socket === sock
-          ) {
+          if (socket === sock) {
             socket = null;
-            console.log('Reconnect required. Check Railway logs.');
+          }
+
+          if (statusCode === DisconnectReason.loggedOut) {
+            console.log(
+              'WhatsApp logged out. Relink the device if needed.'
+            );
+          } else {
+            console.log(
+              'WhatsApp disconnected. Check connection and session.'
+            );
           }
         }
       });
@@ -113,14 +128,19 @@ export default async function (app) {
       return res.json({
         status: 'pairing',
         code: code.match(/.{1,4}/g)?.join('-') || code,
-        message: 'WhatsApp mein Linked Devices khol kar pairing code enter karo.'
+        message:
+          'WhatsApp mein Linked Devices khol kar pairing code enter karo.'
       });
 
     } catch (error) {
-      console.error('Pairing error:', error.message);
+      console.error(
+        'Pairing error:',
+        error.message
+      );
 
       return res.status(500).json({
-        error: 'Pairing fail hui. Railway Logs check karo.',
+        error:
+          'Pairing fail hui. Railway Logs check karo.',
         details: error.message
       });
     } finally {
