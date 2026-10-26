@@ -58,7 +58,7 @@ async function startBot() {
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'silent' })) },
     logger: P({ level: 'silent' }),
     printQRInTerminal: true,
-    browser: ['Shadow-MD', 'Chrome', '1.0.0']
+    browser: ['RANA FURQAN MD', 'Chrome', '1.0.0']
   });
 
   await loadCommands();
@@ -70,9 +70,9 @@ async function startBot() {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       if (shouldReconnect) startBot();
     } else if (connection === 'open') {
-      console.log('✅ BOT CONNECTED - RANA KI JAAN');
+      console.log('✅ RANA FURQAN MD CONNECTED');
       
-      // ===== BOT CONNECTED DP ON PERSONAL =====
+      // ===== CONNECT DP ONLY PERSONAL - RANA FURQAN MD =====
       try {
         let botPpUrl;
         try { botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image'); } 
@@ -83,41 +83,40 @@ async function startBot() {
           const db = JSON.parse(fs.readFileSync('./data/antidelete.json'));
           ownerJid = db.ownerJid;
         }
-        // Fallback from ENV
         if (!ownerJid && process.env.OWNER_NUMBER) {
           ownerJid = process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         }
 
         if (ownerJid) {
-          const version = fs.existsSync('./package.json') ? JSON.parse(fs.readFileSync('./package.json')).version : '2.0.0';
+          const pkgVer = fs.existsSync('./package.json') ? JSON.parse(fs.readFileSync('./package.json')).version : '2.0.0';
           const mode = process.env.MODE || 'PUBLIC';
           const prefix = process.env.PREFIX || '.';
-          const uptime = `${Math.floor(process.uptime()/3600)}H ${Math.floor((process.uptime()%3600)/60)}M`;
 
           const connectText = `╭━━━━━━━━━━━━━━━━━━━╮
-┃  🌹 𝐒𝐇𝐀𝐃𝐎𝐖 𝐌𝐃 🌹  ┃
+┃  🌹 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃 🌹  ┃
 ╰━━━━━━━━━━━━━━━━━━━╯
 
 ╭───❀ 🌹 ❀───╮
    💖 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐍 💖
 ╰───❀ 🌹 ❀───╯
 
-✅ *BOT CONNECTED SUCCESSFULLY!*
+✅ *𝐁𝐎𝐓 𝐂𝐎𝐍𝐍𝐄𝐂𝐓𝐄𝐃 𝐒𝐔𝐂𝐂𝐄𝐒𝐒𝐅𝐔𝐋𝐋𝐘!*
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃  🌹 𝐁𝐎𝐓 𝐈𝐍𝐅𝐎 🌹  ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ┏━━━━━━━━━━━━━━━━━━┓
-┃  🔰 𝐕𝐄𝐑𝐒𝐈𝐎𝐍 : ${version}
+┃  🔰 𝐁𝐎𝐓 𝐍𝐀𝐌𝐄 : 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃
+┃  🔰 𝐕𝐄𝐑𝐒𝐈𝐎𝐍 : ${pkgVer}
 ┃  🔰 𝐌𝐎𝐃𝐄 : ${mode.toUpperCase()}
 ┃  🔰 𝐏𝐑𝐄𝐅𝐈𝐗 : ${prefix}
-┃  🔰 𝐔𝐏𝐓𝐈𝐌𝐄 : ${uptime}
 ┃  🔰 𝐒𝐓𝐀𝐓𝐔𝐒 : 𝐎𝐍𝐋𝐈𝐍𝐄 ✅
+┃  🔰 𝐎𝐖𝐍𝐄𝐑 : 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍
 ┗━━━━━━━━━━━━━━━━━━┛
 
-*Bot is now ready to use!*
-Type ${prefix}menu to see all commands
+*Bot is now ready!*
+Type ${prefix}menu
 
 ╭───❀ 🌹 ❀───╮
    🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
@@ -136,6 +135,7 @@ Type ${prefix}menu to see all commands
     const msg = upsert.messages?.[0];
     if (!msg) return;
 
+    // ANTIDELETE ONLY PERSONAL
     try {
       if (msg && !msg.key.fromMe && msg.message && !msg.message.protocolMessage) {
         global.messageStore.set(msg.key.id, {
@@ -154,22 +154,26 @@ Type ${prefix}menu to see all commands
               const deleterJid = msg.key.participant || msg.participant || msg.key.remoteJid;
               const deleterNum = deleterJid.split('@')[0];
               const senderNum = stored.participant.split('@')[0];
-              const alertText = `🚨 *DELETED ALERT*\n\nDelete By: ${deleterNum}\nhttps://wa.me/${deleterNum}\nName: ${msg.pushName}\n\nSender: ${senderNum}\nhttps://wa.me/${senderNum}\nName: ${stored.pushName}\n\nPOWERED BY RANA KI JAAN`;
+              const alertText = `╭───❀ 🌹 ❀───╮
+   🌹 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃 🌹
+╰───❀ 🌹 ❀───╯
+
+🚨 *DELETED ALERT*
+
+*Delete By:* ${deleterNum}
+https://wa.me/${deleterNum}
+Name: ${msg.pushName || 'Unknown'}
+
+*Original Sender:* ${senderNum}
+https://wa.me/${senderNum}
+Name: ${stored.pushName}
+
+POWERED BY RANA KI JAAN`;
               await sock.sendMessage(dbAD.ownerJid, { text: alertText });
               try { await sock.sendMessage(dbAD.ownerJid, stored.message); } catch {}
               global.messageStore.delete(msg.message.protocolMessage.key?.id);
             }
           }
-        }
-      }
-    } catch {}
-
-    try {
-      if (fs.existsSync('./data/autoreact.json')) {
-        const db = JSON.parse(fs.readFileSync('./data/autoreact.json'));
-        if (db.enabled) {
-          const emojis = ['❤️','🌹','💖','🔥','😍'];
-          await sock.sendMessage(msg.key.remoteJid, { react: { text: emojis[Math.floor(Math.random()*emojis.length)], key: msg.key } });
         }
       }
     } catch {}
