@@ -16,7 +16,7 @@ const PREFIX = process.env.PREFIX || '.';
 
 global.messageStore = new Map();
 global.commands = new Map();
-global.pairSockets = new Map();
+global.pairSock = null;
 
 const app = express();
 
@@ -25,23 +25,35 @@ app.get('/', (req, res) => {
     <html><head><title>${BOT_NAME}</title><meta name="viewport" content="width=device-width, initial-scale=1">
     <style>body{text-align:center;font-family:sans-serif;background:#f0f2f5;padding:10px}.box{background:white;padding:30px;border-radius:20px;max-width:420px;margin:30px auto;box-shadow:0 5px 30px rgba(0,0,0,0.1)}.dp{width:130px;height:130px;border-radius:50%;border:5px solid #25D366;object-fit:cover}input{padding:14px;width:85%;border-radius:10px;border:1px solid #ccc;margin:10px;font-size:16px}button{padding:14px 30px;background:#25D366;color:white;border:none;border-radius:10px;font-weight:bold;font-size:16px;cursor:pointer}</style>
     </head><body><div class="box">
-    <img src="${DP_URL}" class="dp"><h1>🌹 ${BOT_NAME} 🌹</h1><h3 style="color:green">✅ Connected</h3><p>🌹 POWERED BY ${POWERED_BY} 🌹</p><hr>
+    <img src="${DP_URL}" class="dp"><h1>🌹 ${BOT_NAME} 🌹</h1><p>🌹 POWERED BY ${POWERED_BY} 🌹</p><hr>
     <h3>Pair Your Number</h3><form action="/code" method="get"><input type="text" name="number" placeholder="92300XXXXXXXX" required><br><button type="submit">GET PAIR CODE</button></form>
+    <p style="font-size:11px;color:#888">Number bina + ke dalo</p>
     </div></body></html>
   `);
 });
 
 app.get('/code', async (req, res) => {
   let num = req.query.number?.replace(/[^0-9]/g, '');
-  if (!num) return res.send('<h2 style="text-align:center">Number dalo! <a href="/">Back</a></h2>');
-
-  // TEMP AUTH FOR PAIRING - YEHI FIX HAI
-  const tempAuthPath = `./temp_auth_${num}`;
-  if (fs.existsSync(tempAuthPath)) fs.rmSync(tempAuthPath, { recursive: true, force: true });
+  if (!num) return res.send('<h2 style="text-align:center">Number dalo Meri JAAN! <a href="/">Back</a></h2>');
 
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(tempAuthPath);
+    // PURANA AUTH DELETE KARO - YAHI MAIN FIX HAI
+    if (fs.existsSync('./auth') && !global.pairSock) {
+        // check if already registered
+        try {
+            const creds = JSON.parse(fs.readFileSync('./auth/creds.json'));
+            if (!creds.registered) {
+                fs.rmSync('./auth', { recursive: true, force: true });
+                console.log('Old unregistered auth deleted');
+            }
+        } catch {
+            fs.rmSync('./auth', { recursive: true, force: true });
+        }
+    }
+
+    const { state, saveCreds } = await useMultiFileAuthState('./auth');
     const { version } = await fetchLatestBaileysVersion();
+    
     const sock = makeWASocket({
       version,
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'silent' })) },
@@ -49,44 +61,47 @@ app.get('/code', async (req, res) => {
       printQRInTerminal: false,
       browser: [BOT_NAME, 'Chrome', '1.0.0']
     });
+    
     sock.ev.on('creds.update', saveCreds);
-    global.pairSockets.set(num, sock);
+    global.pairSock = sock;
 
     await new Promise(r => setTimeout(r, 3000));
 
-    let code = await sock.requestPairingCode(num);
-    code = code?.match(/.{1,4}/g)?.join('-') || code; // RXDG4MRV -> RXDG-4MRV jaisa show hoga WhatsApp jaisa
+    if (!sock.authState.creds.registered) {
+      let code = await sock.requestPairingCode(num);
+      code = code?.match(/.{1,4}/g)?.join('-') || code;
 
-    console.log(`🌹 PAIR CODE FOR ${num}: ${code} - 1 MIN VALID`);
+      console.log(`🌹 PAIR CODE FOR ${num}: ${code} - 1 MIN VALID`);
 
-    return res.send(`
-      <html><head><title>Pair Code</title><meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body{text-align:center;font-family:sans-serif;background:#f0f2f5;padding:15px}
-        .box{background:white;padding:25px;border-radius:20px;max-width:420px;margin:30px auto;box-shadow:0 5px 30px rgba(0,0,0,0.1)}
-        .dp{width:110px;height:110px;border-radius:50%;border:4px solid #25D366;object-fit:cover}
-        .code{background:#111;color:#25D366;padding:18px 10px;border-radius:15px;margin:20px auto;font-size:30px;font-weight:bold;letter-spacing:2px;word-break:break-all;max-width:100%;box-sizing:border-box}
-        button{padding:12px 25px;background:#25D366;color:white;border:none;border-radius:10px;font-weight:bold;cursor:pointer}
-        .timer{color:red;font-weight:bold;margin:10px}
-      </style>
-      </head><body><div class="box">
-        <img src="${DP_URL}" class="dp"><h2>🌹 ${BOT_NAME} 🌹</h2>
-        <h3>Pair Code for ${num}</h3>
-        <div class="code">${code}</div>
-        <div class="timer" id="timer">Valid: 60 seconds</div>
-        <p>WhatsApp > Linked Devices > Link with Phone Number</p>
-        <p style="font-size:13px;color:#555">Code ko waisa hi dalo jaisa likha hai, dash ke sath</p>
-        <p><b>🌹 POWERED BY ${POWERED_BY} 🌹</b></p>
-        <a href="/"><button>Back to Home</button></a>
-      </div>
-      <script>
-        let t=60; setInterval(()=>{t--; document.getElementById('timer').innerText='Valid: '+t+' seconds'; if(t<=0) document.getElementById('timer').innerText='Code Expired - Get New Code';},1000);
-      </script>
-      </body></html>
-    `);
+      return res.send(`
+        <html><head><title>Pair Code</title><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body{text-align:center;font-family:sans-serif;background:#f0f2f5;padding:15px}
+          .box{background:white;padding:25px;border-radius:20px;max-width:420px;margin:30px auto;box-shadow:0 5px 30px rgba(0,0,0,0.1)}
+          .dp{width:110px;height:110px;border-radius:50%;border:4px solid #25D366;object-fit:cover}
+          .code{background:#111;color:#25D366;padding:18px 10px;border-radius:15px;margin:20px auto;font-size:30px;font-weight:bold;letter-spacing:2px;word-break:break-all;max-width:100%;box-sizing:border-box}
+          button{padding:12px 25px;background:#25D366;color:white;border:none;border-radius:10px;font-weight:bold;cursor:pointer}
+          .timer{color:red;font-weight:bold;margin:10px;font-size:18px}
+        </style>
+        </head><body><div class="box">
+          <img src="${DP_URL}" class="dp"><h2>🌹 ${BOT_NAME} 🌹</h2>
+          <h3>Pair Code for ${num}</h3>
+          <div class="code">${code}</div>
+          <div class="timer" id="timer">Valid: 60 seconds</div>
+          <p><b>WhatsApp > Linked Devices > Link with Phone Number</b></p>
+          <p style="font-size:12px;color:gray">Code ko 15 second ke andar dalo!</p>
+          <p><b>🌹 POWERED BY ${POWERED_BY} 🌹</b></p>
+          <a href="/"><button>Back to Home</button></a>
+        </div>
+        <script>let t=60;const el=document.getElementById('timer');setInterval(()=>{t--;el.innerText='Valid: '+t+' seconds';if(t<=0)el.innerText='Expired - Get New Code';},1000);</script>
+        </body></html>
+      `);
+    } else {
+      res.send(`<h2 style="text-align:center">Already Paired Meri JAAN! Bot Connected hai!<br><a href="/">Home</a></h2>`);
+    }
   } catch(e) {
     console.log('Pair Error: ' + e.message);
-    res.send(`<h3 style="text-align:center">Error: ${e.message} <br> Number sahi dalo, 92300... format me<br><a href="/">Back</a></h3>`);
+    res.send(`<h3 style="text-align:center">Error: ${e.message}<br><a href="/">Back</a></h3>`);
   }
 });
 
@@ -140,19 +155,11 @@ async function startBot() {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      console.log('Connection closed, reconnect:', shouldReconnect);
       if (shouldReconnect) startBot();
     } else if (connection === 'open') {
-      console.log(`✅ ${BOT_NAME} CONNECTED`);
-      try {
-        let botPpUrl; try { botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image'); } catch { botPpUrl = DP_URL; }
-        let ownerJid = null;
-        if (fs.existsSync('./data/antidelete.json')) { try { ownerJid = JSON.parse(fs.readFileSync('./data/antidelete.json')).ownerJid; } catch {} }
-        if (!ownerJid && process.env.OWNER_NUMBER) ownerJid = process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-        if (ownerJid) {
-          const caption = `🌹 ${BOT_NAME} CONNECTED 🌹\n\n✅ Bot is Online!\n\n🌹 POWERED BY ${POWERED_BY} 🌹`;
-          await sock.sendMessage(ownerJid, { image: { url: botPpUrl }, caption });
-        }
-      } catch {}
+      console.log(`✅ ${BOT_NAME} CONNECTED - POWERED BY ${POWERED_BY}`);
+      global.pairSock = null;
     }
   });
   sock.ev.on('messages.upsert', async (upsert) => {
