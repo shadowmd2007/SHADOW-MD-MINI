@@ -1,69 +1,131 @@
-import config from '../config.js';
+import fs from 'fs';
+import path from 'path';
 
 export const command = {
   name: 'menu',
-  aliases: ['help', 'list', 'commands', 'allmenu'],
-  category: 'MAIN',
-  description: 'Show all bot commands (Auto)',
+  aliases: ['help', 'list', 'allmenu', 'rana'],
+  category: 'GENERAL',
+  description: 'Auto commands menu with DP',
+
   run: async (ctx) => {
-    // --- AUTO COMMAND LOADER ---
-    const allCommands = ctx.commandList || [];
-    const validCommands = allCommands.filter(c => c && c.name && !c.hidden);
-    
-    // Category wise grouping
-    const groups = new Map();
-    for (const cmd of validCommands) {
-      const cat = String(cmd.category || cmd.cat || 'OTHER').toUpperCase();
-      if (!groups.has(cat)) groups.set(cat, []);
-      groups.get(cat).push(cmd.name);
-    }
+    const { sock, jid, m, prefix } = ctx;
 
-    let body = `╭───『 ${config.botName} 』───
-│ Owner: ${config.ownerName}
-│ Prefix: ${ctx.prefix || config.prefix}
-│ Commands: ${validCommands.length}
-│ Mode: ${config.mode}
-│ Version: ${config.version}
-╰────────────────────\n\n`;
+    try {
+      // --- GET BOT DP ---
+      let botPpUrl;
+      try {
+        botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image');
+      } catch {
+        botPpUrl = 'https://files.catbox.moe/y04tbj.jpg'; // Default DP
+      }
 
-    // Har category ko auto dikhana
-    const sortedCats = [...groups.keys()].sort();
-    for (const cat of sortedCats) {
-      const cmds = [...new Set(groups.get(cat))].sort(); // duplicate hatana
-      body += `*${cat}*\n`;
-      body += cmds.map(n => `  ◦ ${ctx.prefix || '.'}${n}`).join('\n') + '\n\n';
-    }
+      // --- GET VERSION, MODE, PREFIX ---
+      let version = '2.0.0';
+      try {
+        if (fs.existsSync('./package.json')) {
+          const pkg = JSON.parse(fs.readFileSync('./package.json'));
+          version = pkg.version || '2.0.0';
+        }
+      } catch {}
 
-    body += `
+      let mode = process.env.MODE || process.env.BOT_MODE || 'PUBLIC';
+      let botName = process.env.BOT_NAME || 'SHADOW-MD';
+
+      // --- UPTIME ---
+      const uptimeSec = process.uptime();
+      const days = Math.floor(uptimeSec / 86400);
+      const hours = Math.floor((uptimeSec % 86400) / 3600);
+      const mins = Math.floor((uptimeSec % 3600) / 60);
+      const uptime = `${days}D ${hours}H ${mins}M`;
+
+      // --- AUTO LOAD ALL COMMANDS FROM FOLDER ---
+      const commandsPath = './commands';
+      let files = [];
+      try {
+        files = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
+      } catch { files = []; }
+
+      const totalCommands = files.length;
+
+      // Categorize
+      let categories = {};
+      for (const file of files) {
+        try {
+          const filePath = path.join(process.cwd(), commandsPath, file);
+          // We can't import dynamically easily, so we just list by name
+          const cmdName = file.replace('.js', '');
+          let cat = 'OTHER';
+          if (['play','video','song','drama','ytmp3','ytmp4','mp3'].includes(cmdName)) cat = 'DOWNLOADER';
+          if (['autoplay','autovideo','autoreact','antidelete','autodel'].includes(cmdName)) cat = 'AUTO SYSTEM';
+          if (['menu','help','ping','alive','owner','bot'].includes(cmdName)) cat = 'GENERAL';
+          if (['group','kick','add','promote'].includes(cmdName)) cat = 'GROUP';
+
+          if (!categories[cat]) categories[cat] = [];
+          categories[cat].push(cmdName);
+        } catch {}
+      }
+
+      let categoryText = '';
+      for (const [cat, cmds] of Object.entries(categories)) {
+        categoryText += `\n╭───❀ 🌹 ${cat} ❀───╮\n`;
+        for (const c of cmds) {
+          categoryText += `│ ◦ ${prefix}${c}\n`;
+        }
+        categoryText += `╰───❀ 🌹 ❀───╯\n`;
+      }
+
+      // --- FINAL MENU WITH BIG FONTS ---
+      const finalMenu = `╭━━━━━━━━━━━━━━━━━━━╮
+┃  🌹 𝐒𝐇𝐀𝐃𝐎𝐖 𝐌𝐃 🌹  ┃
+╰━━━━━━━━━━━━━━━━━━━╯
+
+╭───❀ 🌹 ❀───╮
+   💖 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐍 💖
+╰───❀ 🌹 ❀───╯
+
+╭━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃  🌹 𝐁𝐎𝐓 𝐈𝐍𝐅𝐎 🌹  ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+┏━━━━━━━━━━━━━━━━━━┓
+┃  🔰 𝐕𝐄𝐑𝐒𝐈𝐎𝐍 : ${version}
+┃  🔰 𝐌𝐎𝐃𝐄 : ${mode.toUpperCase()}
+┃  🔰 𝐏𝐑𝐄𝐅𝐈𝐗 : ${prefix}
+┃  🔰 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 : ${totalCommands}
+┃  🔰 𝐔𝐏𝐓𝐈𝐌𝐄 : ${uptime}
+┃  🔰 𝐎𝐖𝐍𝐄𝐑 : 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐀𝐍
+┗━━━━━━━━━━━━━━━━━━┛
+
+╭━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃  🌹 𝐀𝐋𝐋 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 🌹  ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯
+${categoryText}
+╭━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃  🌹 𝐇𝐎𝐖 𝐓𝐎 𝐔𝐒𝐄 🌹  ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+◦ For Song: ${prefix}play Pasoori
+◦ For Video: ${prefix}video Pasoori
+
+◦ If ${prefix}autoplay on -> Just write song name
+◦ If ${prefix}autovideo on -> Just write video name
+
+◦ ${prefix}antidelete on -> Deleted msgs only on your personal with number
+
 ╭───❀ 🌹 ❀───╮
    🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
    💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
+   💖 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐀𝐍 💖
 ╰───❀ 🌹 ❀───╯
 `;
 
-    // --- JAWAD STYLE VIEW CHANNEL BUTTON ---
-    const contextInfo = {
-      forwardingScore: 999,
-      isForwarded: true,
-      forwardedNewsletterMessageInfo: {
-        newsletterJid: config.channelJid,
-        newsletterName: config.channelName,
-        serverMessageId: 1
-      }
-    };
+      await sock.sendMessage(jid, { 
+        image: { url: botPpUrl }, 
+        caption: finalMenu 
+      }, { quoted: m });
 
-    try {
-      await ctx.sock.sendMessage(ctx.jid, {
-        image: { url: config.menuImage },
-        caption: body.trim(),
-        contextInfo: contextInfo
-      }, { quoted: ctx.m });
     } catch (e) {
-      // Agar image fail ho to text me bhej de
-      await ctx.sock.sendMessage(ctx.jid, {
-        text: body.trim(),
-        contextInfo: contextInfo
-      }, { quoted: ctx.m });
+      await ctx.reply(`❌ Menu Error: ${e.message}`);
     }
   }
 };
