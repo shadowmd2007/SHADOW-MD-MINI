@@ -1,3 +1,4 @@
+
 import { config } from "../config.js";
 
 export const command = {
@@ -6,13 +7,25 @@ export const command = {
   description: "Check bot speed",
   run: async ({ sock, remote, msg }) => {
     const start = Date.now();
-    const sent = await sock.sendMessage(remote, { text: "*Pinging...* 🏓" }, { quoted: msg });
+
+    const sent = await sock.sendMessage(
+      remote,
+      { text: "*Pinging...* 🏓" },
+      { quoted: msg }
+    );
+
     const end = Date.now();
     const speed = end - start;
-    
-    await sock.sendMessage(remote, { 
-      text: `*┌───⭓ PING ⭓───*\n*│* ⚡ *Speed:* ${speed} ms\n*│* 🚀 *Bot:* ${config.botName}\n*│* 👑 *Owner:* ${config.ownerName}\n*└───────────⭓*\n\n> *SHADOW MD - Super Fast!*`,
-      edit: sent.key 
+
+    await sock.sendMessage(remote, {
+      text: `*┌───⭓ PING ⭓───*
+*│* ⚡ *Speed:* ${speed} ms
+*│* 🚀 *Bot:* ${config.botName}
+*│* 👑 *Owner:* ${config.ownerName}
+*└───────────⭓*
+
+> *SHADOW MD - Super Fast!*`,
+      edit: sent.key
     });
   }
 };
