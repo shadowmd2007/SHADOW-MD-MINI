@@ -20,48 +20,95 @@ global.botStatus = { connected: false, loggedOut: false };
 const app = express();
 app.use(express.json());
 
-// ===== WEBSITE - AB SACH BATAYEGA =====
+// ===== BARA KHUBSURAT DESIGN - DP KE SATH =====
 app.get('/', (req, res) => {
   const status = global.botStatus;
   if (status.loggedOut) {
     res.send(`
       <html><head><title>${BOT_NAME} - Logout</title><meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>body{text-align:center;font-family:sans-serif;background:#ffe6e6;padding:20px}.box{background:white;padding:25px;border-radius:20px;max-width:420px;margin:30px auto}.dp{width:100px;height:100px;border-radius:50%}</style>
-      </head><body><div class="box"><img src="${DP_URL}" class="dp"><h2 style="color:red">❌ ${BOT_NAME} LOGOUT HO GAYA</h2><p>Auth delete ho gaya, dobara pair karo</p><a href="/code" style="background:#25D366;color:white;padding:12px 25px;border-radius:10px;text-decoration:none;display:inline-block;margin-top:10px">Pairing Code Lo</a></div></body></html>
+      <style>
+        body{text-align:center;font-family:sans-serif;background:linear-gradient(135deg,#ff9a9e 0%,#fecfef 100%);padding:15px;margin:0;min-height:100vh}
+        .box{background:white;padding:30px;border-radius:25px;max-width:450px;margin:40px auto;box-shadow:0 10px 30px rgba(0,0,0,0.2)}
+        .dp{width:140px;height:140px;border-radius:50%;border:5px solid #ff4757;object-fit:cover}
+        h2{color:#ff4757} .btn{background:#25D366;color:white;padding:14px 30px;border-radius:12px;text-decoration:none;display:inline-block;margin-top:15px;font-weight:bold;font-size:16px}
+      </style></head>
+      <body><div class="box"><img src="${DP_URL}" class="dp"><h2>❌ ${BOT_NAME} LOGOUT</h2><p>Bot logout ho gaya hai</p><p>Auth delete ho gaya</p><a href="/code" class="btn">🔗 Pairing Code Lo</a><p style="margin-top:15px;font-size:13px;color:#666">POWERED BY ${POWERED_BY} 🌹</p></div></body></html>
     `);
   } else if (status.connected) {
     res.send(`
       <html><head><title>${BOT_NAME} - Connected</title><meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>body{text-align:center;font-family:sans-serif;background:#e6ffe6;padding:20px}.box{background:white;padding:25px;border-radius:20px;max-width:420px;margin:30px auto}.dp{width:100px;height:100px;border-radius:50%;border:4px solid #25D366}</style>
-      </head><body><div class="box"><img src="${DP_URL}" class="dp"><h2 style="color:green">🌹 ${BOT_NAME} CONNECTED 🌹</h2><p>✅ Bot Online Hai!</p><p>WhatsApp pe <b>${PREFIX}ping</b> bhejo</p><p>Total Commands: ${global.commands.size}</p></div></body></html>
+      <style>
+        body{text-align:center;font-family:sans-serif;background:linear-gradient(135deg,#a8edea 0%,#fed6e3 100%);padding:15px;margin:0;min-height:100vh}
+        .box{background:white;padding:30px;border-radius:25px;max-width:450px;margin:40px auto;box-shadow:0 10px 30px rgba(0,0,0,0.2)}
+        .dp{width:140px;height:140px;border-radius:50%;border:5px solid #25D366;object-fit:cover}
+        h2{color:#25D366} .badge{background:#25D366;color:white;padding:8px 15px;border-radius:20px;font-size:14px;display:inline-block;margin:10px}
+      </style></head>
+      <body><div class="box"><img src="${DP_URL}" class="dp"><h2>🌹 ${BOT_NAME} CONNECTED 🌹</h2><p style="font-size:18px;font-weight:bold;color:#2f3542">✅ Bot Online Hai!</p><span class="badge">📦 ${global.commands.size} Commands Loaded</span><br><br><p>WhatsApp pe <b style="background:#eee;padding:5px 10px;border-radius:5px">${PREFIX}ping</b> bhejo</p><p>Personal + Group dono pe chalega!</p><p style="margin-top:20px;font-size:13px;color:#666">🌹 POWERED BY ${POWERED_BY} 🌹</p></div></body></html>
     `);
   } else {
     res.send(`
-      <html><head><title>${BOT_NAME} - Starting</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-      <body style="text-align:center;font-family:sans-serif;padding:30px"><h2>⏳ ${BOT_NAME} Starting...</h2><p>Thodi dair me refresh karo</p><a href="/code">Pairing Code</a></body></html>
+      <html><head><title>${BOT_NAME} - Starting</title><meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body{text-align:center;font-family:sans-serif;background:linear-gradient(135deg,#f6d365 0%,#fda085 100%);padding:15px;margin:0;min-height:100vh}
+        .box{background:white;padding:30px;border-radius:25px;max-width:450px;margin:40px auto;box-shadow:0 10px 30px rgba(0,0,0,0.2)}
+        .dp{width:140px;height:140px;border-radius:50%;border:5px solid #ffa502;object-fit:cover}
+        h2{color:#ffa502}
+      </style></head>
+      <body><div class="box"><img src="${DP_URL}" class="dp"><h2>⏳ ${BOT_NAME} Starting...</h2><p>Bot start ho raha hai...</p><p>Thodi dair me refresh karo</p><a href="/code" style="color:#25D366;font-weight:bold">Pairing Code</a><p style="margin-top:15px;font-size:13px;color:#666">POWERED BY ${POWERED_BY}</p></div></body></html>
     `);
   }
 });
 
+// ===== BARA PAIRING CODE PAGE - JAISE PEHLE THA =====
 app.get('/code', async (req, res) => {
   const num = req.query.num || req.query.number;
   if (!num) {
     return res.send(`
-      <html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:sans-serif;text-align:center;padding:20px}.box{background:white;padding:20px;border-radius:15px;max-width:400px;margin:20px auto;box-shadow:0 2px 10px rgba(0,0,0,0.1)}input{padding:12px;width:80%;border-radius:8px;border:1px solid #ccc;margin:10px}button{padding:12px 25px;background:#25D366;color:white;border:none;border-radius:8px}</style></head>
-      <body><div class="box"><h2>Pair ${BOT_NAME}</h2><p>Number likho (92 se start)</p><input id="num" placeholder="923003719761"><br><button onclick="location.href='/code?num='+document.getElementById('num').value">Get Code</button><br><br><a href="/">Home</a></div></body></html>
+      <html><head><title>Pair ${BOT_NAME}</title><meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body{font-family:sans-serif;text-align:center;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:15px;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+        .box{background:white;padding:35px;border-radius:25px;max-width:450px;width:100%;box-shadow:0 15px 35px rgba(0,0,0,0.3)}
+        .dp{width:130px;height:130px;border-radius:50%;border:5px solid #667eea;object-fit:cover;margin-bottom:10px}
+        h2{color:#2f3542;margin:15px 0} p{color:#57606f}
+        input{padding:15px;width:85%;border-radius:12px;border:2px solid #dfe4ea;margin:15px 0;font-size:16px;text-align:center}
+        input:focus{border-color:#667eea;outline:none}
+        button{padding:14px 35px;background:#25D366;color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer;box-shadow:0 4px 15px rgba(37,211,102,0.4)}
+        button:hover{background:#128C7E} a{color:#667eea;text-decoration:none;font-weight:bold}
+      </style></head>
+      <body><div class="box">
+        <img src="${DP_URL}" class="dp">
+        <h2>🌹 Pair ${BOT_NAME} 🌹</h2>
+        <p>Number likho (92 se start)</p>
+        <p style="font-size:13px;color:#999">Example: 923003719761</p>
+        <input id="num" placeholder="923003719761" value="923003719761"><br>
+        <button onclick="if(document.getElementById('num').value){location.href='/code?num='+document.getElementById('num').value}else{alert('Number likho')}"">🔗 Get Code</button>
+        <br><br><a href="/">🏠 Home</a>
+        <p style="margin-top:20px;font-size:12px;color:#aaa">POWERED BY ${POWERED_BY} 🌹</p>
+      </div></body></html>
     `);
   }
   try {
-    if (!global.sockForPair) return res.send('Bot abhi start ho raha hai, 10 sec baad try karo <a href="/code">Back</a>');
-    const code = await global.sockForPair.requestPairingCode(num.replace(/[^0-9]/g,''));
-    console.log(`CODE: ${code} for ${num}`);
-    res.send(`<html><body style="text-align:center;font-family:sans-serif;padding:30px"><h1>CODE: ${code}</h1><p>Number: ${num}</p><p>WhatsApp > Linked Devices > Link with phone number pe ye code dalo</p><p>Code: <b>${code}</b></p><a href="/">Home</a></body></html>`);
+    if (!global.sockForPair) return res.send('<html><body style="text-align:center;padding:30px"><h2>Bot abhi start ho raha hai...</h2><p>10 second baad refresh karo</p><a href="/code">Back</a></body></html>');
+    const cleanNum = num.replace(/[^0-9]/g,'');
+    const code = await global.sockForPair.requestPairingCode(cleanNum);
+    console.log(`CODE: ${code} for ${cleanNum}`);
+    res.send(`
+      <html><head><title>Code - ${BOT_NAME}</title><meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body{text-align:center;font-family:sans-serif;background:linear-gradient(135deg,#a8edea 0%,#fed6e3 100%);padding:15px;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+        .box{background:white;padding:35px;border-radius:25px;max-width:450px;width:100%;box-shadow:0 15px 35px rgba(0,0,0,0.3)}
+        .dp{width:120px;height:120px;border-radius:50%;border:5px solid #25D366}
+        .code{font-size:32px;font-weight:bold;background:#2f3542;color:#fff;padding:15px 25px;border-radius:15px;letter-spacing:5px;margin:20px 0;display:inline-block}
+        .num{color:#57606f}
+      </style></head>
+      <body><div class="box"><img src="${DP_URL}" class="dp"><h2>✅ Code Generated!</h2><p class="num">Number: ${cleanNum}</p><div class="code">${code}</div><p><b>WhatsApp pe jao:</b><br>Linked Devices > Link with phone number > Ye code dalo</p><p style="background:#ffeaa7;padding:10px;border-radius:8px;font-weight:bold">CODE: ${code}</p><br><a href="/" style="background:#25D366;color:white;padding:12px 25px;border-radius:10px;text-decoration:none">Home</a></div></body></html>
+    `);
   } catch(e) {
-    res.send(`Error: ${e.message} <br><a href="/code">Try Again</a>`);
+    res.send(`<html><body style="text-align:center;padding:30px"><h2 style="color:red">Error: ${e.message}</h2><a href="/code">Try Again</a> | <a href="/">Home</a></body></html>`);
   }
 });
 
-app.listen(PORT, () => console.log(`🌐 Live on ${PORT}`));
+app.listen(PORT, () => console.log(`🌐 ${BOT_NAME} Live on ${PORT}`));
 
 async function loadCommands() {
   const p = path.join(__dirname, 'commands');
@@ -91,12 +138,9 @@ async function startBot(){
     browser: ["Ubuntu","Chrome","20.0.04"],
     markOnlineOnConnect: true
   });
-  
   global.sockForPair = sock;
   await loadCommands();
-
   sock.ev.on('creds.update', saveCreds);
-
   sock.ev.on('connection.update', async ({connection, lastDisconnect})=>{
     if(connection==='close'){
       global.botStatus.connected = false;
@@ -108,18 +152,16 @@ async function startBot(){
         if(fs.existsSync('./auth')) fs.rmSync('./auth', {recursive:true, force:true});
       } else {
         global.botStatus.loggedOut = false;
-        console.log('Reconnecting in 3 sec...');
         await delay(3000);
         startBot();
       }
     } else if(connection==='open'){
       global.botStatus.connected = true;
       global.botStatus.loggedOut = false;
-      console.log(`✅✅ ${BOT_NAME} CONNECTED - ${global.commands.size} Commands Ready ✅✅`);
+      console.log(`✅ ${BOT_NAME} CONNECTED - ${global.commands.size} Commands Ready ✅`);
     }
   });
 
-  // UNIVERSAL HANDLER - PERSONAL + GROUP + OTHERS SAB PE CHALEGA
   sock.ev.on('messages.upsert', async (upsert)=>{
     try{
       if(upsert.type !== 'notify') return;
@@ -129,17 +171,12 @@ async function startBot(){
       if(!text) return;
       text = text.trim();
       if(!text.startsWith(PREFIX)) return;
-
       const from = msg.key.remoteJid;
       const args = text.slice(PREFIX.length).trim().split(/ +/);
       const cmdName = args.shift().toLowerCase();
       const command = global.commands.get(cmdName);
-      if(!command) {
-        console.log(`❌ Not found: ${cmdName}`);
-        return;
-      }
+      if(!command) return;
       console.log(`📩 ${PREFIX}${cmdName} from ${from} | fromMe=${msg.key.fromMe}`);
-
       const ctx = {
         sock,
         jid: from,
