@@ -8,14 +8,21 @@ import P from 'pino';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// --- FIX FOR RAILWAY 502 - Website Server ---
+// ===== 1. FIX FOR RAILWAY 502 + POWERED BY MERI JAAN =====
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => {
-  res.send(`<h1>🌹 RANA FURQAN MD ONLINE 🌹</h1><h3>Bot Status: ✅ Connected</h3><p>Powered By RANA KI JAAN</p>`);
+  res.send(`
+    <div style="text-align:center; margin-top:100px; font-family:sans-serif;">
+      <h1>🌹 RANA FURQAN MD ONLINE 🌹</h1>
+      <h2 style="color:green;">Bot Status: ✅ Connected</h2>
+      <h3>🌹 POWERED BY MERI JAAN 🌹</h3>
+      <p>Bot is running successfully</p>
+    </div>
+  `);
 });
-app.listen(PORT, () => console.log(`🌐 Server Live on ${PORT}`));
-// --- END FIX ---
+app.listen(PORT, () => console.log(`🌐 Web Server Live on ${PORT} - RANA FURQAN MD - POWERED BY MERI JAAN`));
+// ===== END FIX =====
 
 global.messageStore = new Map();
 global.commands = new Map();
@@ -24,7 +31,7 @@ async function loadCommands() {
   const commandsPath = path.join(__dirname, 'commands');
   if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath, { recursive: true });
   const files = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
-  console.log(`📂 Found ${files.length} commands`);
+  console.log(`📂 Found ${files.length} commands - POWERED BY MERI JAAN`);
   for (const file of files) {
     try {
       const filePath = path.join(commandsPath, file);
@@ -63,7 +70,6 @@ async function startBot() {
     version,
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'silent' })) },
     logger: P({ level: 'silent' }),
-    printQRInTerminal: true,
     browser: ['RANA FURQAN MD', 'Chrome', '1.0.0']
   });
   await loadCommands();
@@ -74,7 +80,7 @@ async function startBot() {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       if (shouldReconnect) startBot();
     } else if (connection === 'open') {
-      console.log('✅ RANA FURQAN MD CONNECTED');
+      console.log('✅ RANA FURQAN MD CONNECTED - POWERED BY MERI JAAN');
       try {
         let botPpUrl;
         try { botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image'); } catch { botPpUrl = 'https://files.catbox.moe/y04tbj.jpg'; }
@@ -82,18 +88,20 @@ async function startBot() {
         if (fs.existsSync('./data/antidelete.json')) ownerJid = JSON.parse(fs.readFileSync('./data/antidelete.json')).ownerJid;
         if (!ownerJid && process.env.OWNER_NUMBER) ownerJid = process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         if (ownerJid) {
-          const connectText = `╭━━━━━━━━━━━━━━━━━━━╮
+          const caption = `╭━━━━━━━━━━━━━━━━━━━╮
 ┃  🌹 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃 🌹  ┃
 ╰━━━━━━━━━━━━━━━━━━━╯
 
-✅ *BOT CONNECTED!*
-Bot Name: RANA FURQAN MD
-Status: ONLINE ✅
+✅ *BOT CONNECTED SUCCESSFULLY!*
 
-Type .menu
+BOT NAME: RANA FURQAN MD
+STATUS: ONLINE ✅
 
-POWERED BY RANA KI JAAN`;
-          await sock.sendMessage(ownerJid, { image: { url: botPpUrl }, caption: connectText });
+╭───❀ 🌹 ❀───╮
+   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
+   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
+╰───❀ 🌹 ❀───╯`;
+          await sock.sendMessage(ownerJid, { image: { url: botPpUrl }, caption });
         }
       } catch {}
     }
@@ -114,7 +122,7 @@ POWERED BY RANA KI JAAN`;
             const stored = global.messageStore.get(msg.message.protocolMessage.key?.id);
             if (stored) {
               const deleterJid = msg.key.participant || msg.participant || msg.key.remoteJid;
-              await sock.sendMessage(dbAD.ownerJid, { text: `🚨 DELETED by ${deleterJid.split('@')[0]} https://wa.me/${deleterJid.split('@')[0]}` });
+              await sock.sendMessage(dbAD.ownerJid, { text: `🚨 *DELETED by ${deleterJid.split('@')[0]}* https://wa.me/${deleterJid.split('@')[0]}\n\nPOWERED BY MERI JAAN` });
               try { await sock.sendMessage(dbAD.ownerJid, stored.message); } catch {}
             }
           }
