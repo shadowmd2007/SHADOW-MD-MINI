@@ -8,35 +8,48 @@ import P from 'pino';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ===== WEB SERVER + PAIR SITE - POWERED BY MERI JAAN =====
-const app = express();
+// ====== CONFIG - RANA FURQAN MD - POWERED BY MERI JAAN ======
+const BOT_NAME = 'RANA FURQAN MD';
+const POWERED_BY = 'MERI JAAN';
+const DP_URL = process.env.BOT_DP || 'https://files.catbox.moe/y04tbj.jpg'; // Apni DP ka link yahan daal do
 const PORT = process.env.PORT || 3000;
+const PREFIX = process.env.PREFIX || '.';
+
+global.messageStore = new Map();
+global.commands = new Map();
+
+// ====== WEB SERVER + PAIR SITE + DP ======
+const app = express();
 
 app.get('/', (req, res) => {
   res.send(`
     <html>
-    <head><title>RANA FURQAN MD - MERI JAAN</title>
-    <style>
-      body{text-align:center;font-family:sans-serif;padding:20px;background:#f5f5f5}
-      .box{background:white;padding:30px;border-radius:15px;max-width:400px;margin:50px auto;box-shadow:0 0 20px #ccc}
-      input{padding:12px;width:80%;border-radius:8px;border:1px solid #ccc;margin:10px}
-      button{padding:12px 25px;background:#25D366;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold}
-      h1{color:#111}
-    </style>
+    <head>
+      <title>${BOT_NAME} - ${POWERED_BY}</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body{text-align:center;font-family:sans-serif;padding:10px;background:#f0f2f5}
+        .box{background:white;padding:30px;border-radius:20px;max-width:420px;margin:40px auto;box-shadow:0 5px 30px rgba(0,0,0,0.1)}
+        .dp{width:130px;height:130px;border-radius:50%;border:5px solid #25D366;object-fit:cover;margin-bottom:15px}
+        input{padding:14px;width:85%;border-radius:10px;border:1px solid #ccc;margin:10px;font-size:16px}
+        button{padding:14px 30px;background:#25D366;color:white;border:none;border-radius:10px;cursor:pointer;font-weight:bold;font-size:16px}
+        h1{color:#111;margin:10px 0;font-size:22px}
+      </style>
     </head>
     <body>
       <div class="box">
-        <h1>🌹 RANA FURQAN MD ONLINE 🌹</h1>
+        <img src="${DP_URL}" class="dp" alt="Bot DP" onerror="this.src='https://files.catbox.moe/y04tbj.jpg'">
+        <h1>🌹 ${BOT_NAME} ONLINE 🌹</h1>
         <h3 style="color:green;">Bot Status: ✅ Connected</h3>
-        <p>🌹 POWERED BY MERI JAAN 🌹</p>
-        <hr>
+        <p>🌹 POWERED BY ${POWERED_BY} 🌹</p>
+        <hr style="margin:20px 0">
         <h3>Pair Your Number</h3>
         <form action="/code" method="get">
-          <input type="text" name="number" placeholder="9230XXXXXXXX - Number without +" required>
+          <input type="text" name="number" placeholder="9230XXXXXXXX" required>
           <br>
           <button type="submit">GET PAIR CODE</button>
         </form>
-        <p style="font-size:12px;margin-top:20px;">Bot is running successfully</p>
+        <p style="font-size:12px;margin-top:20px;color:#888">Bot is running successfully</p>
       </div>
     </body>
     </html>
@@ -45,19 +58,20 @@ app.get('/', (req, res) => {
 
 app.get('/code', async (req, res) => {
   let num = req.query.number?.replace(/[^0-9]/g, '');
-  if (!num) return res.send('<h3>Number dalo Meri JAAN!</h3><a href="/">Back</a>');
+  if (!num) return res.send('<h2 style="text-align:center">Number dalo Meri JAAN! <br><a href="/">Back</a></h2>');
   
   res.send(`
-    <div style="text-align:center;margin-top:100px;font-family:sans-serif">
-      <h2>🌹 RANA FURQAN MD 🌹</h2>
-      <h3>Pair Code generating for: ${num}</h3>
-      <p>Please wait... Check Railway Logs for Code</p>
-      <p><b>POWERED BY MERI JAAN</b></p>
+    <div style="text-align:center;margin-top:80px;font-family:sans-serif">
+      <img src="${DP_URL}" style="width:100px;height:100px;border-radius:50%;border:3px solid #25D366">
+      <h2>🌹 ${BOT_NAME} 🌹</h2>
+      <h3>Pair Code for ${num}</h3>
+      <p>Code Railway Logs me ayega - 2 second wait karo</p>
+      <p style="background:#f0f0f0;padding:15px;border-radius:10px;max-width:400px;margin:20px auto">Railway > Deployments > View Logs me dekho:<br><b>🌹 PAIR CODE FOR...</b></p>
+      <p><b>POWERED BY ${POWERED_BY}</b></p>
       <a href="/">Back to Home</a>
     </div>
   `);
 
-  // Generate Pair Code in background
   try {
     const { state, saveCreds } = await useMultiFileAuthState('./auth');
     const { version } = await fetchLatestBaileysVersion();
@@ -66,29 +80,28 @@ app.get('/code', async (req, res) => {
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'silent' })) },
       logger: P({ level: 'silent' }),
       printQRInTerminal: false,
-      browser: ['RANA FURQAN MD', 'Chrome', '1.0.0']
+      browser: [BOT_NAME, 'Chrome', '1.0.0']
     });
+    sock.ev.on('creds.update', saveCreds);
     setTimeout(async () => {
-      if (!sock.authState.creds.registered) {
-        let code = await sock.requestPairingCode(num);
-        console.log(`\n\n🌹 PAIR CODE FOR ${num}: ${code} - POWERED BY MERI JAAN 🌹\n\n`);
-      }
+      try {
+        if (!sock.authState.creds.registered) {
+          let code = await sock.requestPairingCode(num);
+          console.log(`\n\n🌹 PAIR CODE FOR ${num}: ${code} - POWERED BY ${POWERED_BY} 🌹\n\n`);
+        }
+      } catch(e) { console.log('Pair Error: ' + e.message); }
     }, 3000);
   } catch(e) { console.log(e) }
 });
 
-app.listen(PORT, () => console.log(`🌐 Web + Pair Server Live on ${PORT} - POWERED BY MERI JAAN`));
-// ===== END =====
+app.listen(PORT, () => console.log(`🌐 ${BOT_NAME} Web + Pair Server Live on ${PORT} - POWERED BY ${POWERED_BY}`));
 
-// Baki tumhara bot wala code neeche same rahega...
-global.messageStore = new Map();
-global.commands = new Map();
-
+// ====== BOT LOGIC ======
 async function loadCommands() {
   const commandsPath = path.join(__dirname, 'commands');
   if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath, { recursive: true });
   const files = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
-  console.log(`📂 Found ${files.length} commands - POWERED BY MERI JAAN`);
+  console.log(`📂 Found ${files.length} commands - POWERED BY ${POWERED_BY}`);
   for (const file of files) {
     try {
       const filePath = path.join(commandsPath, file);
@@ -98,26 +111,27 @@ async function loadCommands() {
         global.commands.set(cmd.name.toLowerCase(), cmd);
         if (cmd.aliases) for (const a of cmd.aliases) global.commands.set(a.toLowerCase(), cmd);
       }
-    } catch (e) { console.log(`❌ ${file}: ${e.message}`); }
+    } catch (e) { console.log(`❌ ${file}: ${e.message} - Skipped`); }
   }
 }
-async function onMessage(sock, upsert) { /* tumhara purana onMessage */ 
+
+async function onMessage(sock, upsert) { 
   try {
     const msg = upsert.messages?.[0];
     if (!msg || !msg.message || msg.key.fromMe) return;
     const from = msg.key.remoteJid;
     let text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || msg.message.videoMessage?.caption || '';
     if (!text) return;
-    const prefix = process.env.PREFIX || '.';
-    if (!text.startsWith(prefix)) return;
-    const args = text.slice(prefix.length).trim().split(/ +/);
+    if (!text.startsWith(PREFIX)) return;
+    const args = text.slice(PREFIX.length).trim().split(/ +/);
     const cmdName = args.shift().toLowerCase();
     const command = global.commands.get(cmdName);
     if (!command) return;
-    const ctx = { sock, jid: from, m: msg, args, prefix, sender: from.endsWith('@g.us') ? msg.key.participant : from, reply: async (txt) => await sock.sendMessage(from, { text: txt }, { quoted: msg }) };
+    const ctx = { sock, jid: from, m: msg, args, prefix: PREFIX, sender: from.endsWith('@g.us') ? msg.key.participant : from, reply: async (txt) => await sock.sendMessage(from, { text: txt }, { quoted: msg }) };
     await command.run(ctx);
-  } catch (e) {}
+  } catch (e) { console.log('Message Error: ' + e.message); }
 }
+
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth');
   const { version } = await fetchLatestBaileysVersion();
@@ -125,7 +139,7 @@ async function startBot() {
     version,
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'silent' })) },
     logger: P({ level: 'silent' }),
-    browser: ['RANA FURQAN MD', 'Chrome', '1.0.0']
+    browser: [BOT_NAME, 'Chrome', '1.0.0']
   });
   await loadCommands();
   sock.ev.on('creds.update', saveCreds);
@@ -135,18 +149,21 @@ async function startBot() {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       if (shouldReconnect) startBot();
     } else if (connection === 'open') {
-      console.log('✅ RANA FURQAN MD CONNECTED - POWERED BY MERI JAAN');
+      console.log(`✅ ${BOT_NAME} CONNECTED - POWERED BY ${POWERED_BY}`);
       try {
         let botPpUrl;
-        try { botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image'); } catch { botPpUrl = 'https://files.catbox.moe/y04tbj.jpg'; }
+        try { botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image'); } catch { botPpUrl = DP_URL; }
         let ownerJid = null;
-        if (fs.existsSync('./data/antidelete.json')) ownerJid = JSON.parse(fs.readFileSync('./data/antidelete.json')).ownerJid;
+        if (fs.existsSync('./data/antidelete.json')) {
+          try { ownerJid = JSON.parse(fs.readFileSync('./data/antidelete.json')).ownerJid; } catch {}
+        }
         if (!ownerJid && process.env.OWNER_NUMBER) ownerJid = process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         if (ownerJid) {
-          const caption = `🌹 RANA FURQAN MD CONNECTED 🌹\n\nPOWERED BY MERI JAAN`;
+          const caption = `🌹 ${BOT_NAME} CONNECTED 🌹\n\n✅ Bot is Online!\n\n🌹 POWERED BY ${POWERED_BY} 🌹`;
+          // Yahan wahi DP ayegi jo Menu wali hai - BOT ki DP
           await sock.sendMessage(ownerJid, { image: { url: botPpUrl }, caption });
         }
-      } catch {}
+      } catch(e) { console.log('Connect DP Error: ' + e.message); }
     }
   });
   sock.ev.on('messages.upsert', async (upsert) => {
@@ -156,20 +173,6 @@ async function startBot() {
     try {
       if (msg && !msg.key.fromMe && msg.message && !msg.message.protocolMessage) {
         global.messageStore.set(msg.key.id, { jid: msg.key.remoteJid, message: msg.message, participant: msg.key.participant || msg.key.remoteJid, pushName: msg.pushName || 'Unknown' });
-      }
-      if (msg.message?.protocolMessage?.type === 0) {
-        const dbPathAD = './data/antidelete.json';
-        if (fs.existsSync(dbPathAD)) {
-          const dbAD = JSON.parse(fs.readFileSync(dbPathAD));
-          if (dbAD.enabled && dbAD.ownerJid) {
-            const stored = global.messageStore.get(msg.message.protocolMessage.key?.id);
-            if (stored) {
-              const deleterJid = msg.key.participant || msg.participant || msg.key.remoteJid;
-              await sock.sendMessage(dbAD.ownerJid, { text: `DELETED by ${deleterJid.split('@')[0]} - POWERED BY MERI JAAN` });
-              try { await sock.sendMessage(dbAD.ownerJid, stored.message); } catch {}
-            }
-          }
-        }
       }
     } catch {}
     await onMessage(sock, upsert);
