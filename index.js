@@ -127,7 +127,7 @@ function onConnection(s, myGen, update) {
     console.log('CONNECTED SUCCESSFULLY!', status.number)
     const me = String(s.user?.id || '').replace(/:\d+@/, '@')
     if (me) {
-      s.sendMessage(me, { text: '✅ SHADOW-MD CONNECTED! Bot Online!\n\nType .menu' }).catch(() => {})
+      s.sendMessage(me, { text: '✅ RANA FURQAN MD CONNECTED! Bot Online!\n\nType .menu' }).catch(() => {})
     }
   }
 
@@ -240,7 +240,7 @@ app.get('/', (req, res) => {
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SHADOW-MD PAIR</title>
+<title>RANA FURQAN MD PAIR</title>
 <style>
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0e1116;color:#eef0f4;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
@@ -253,7 +253,7 @@ app.get('/', (req, res) => {
   #s{font-size:14px;color:#cbd2dc} #d{font-size:13px;color:#6b7280;margin-top:10px}
 </style></head><body>
 <div class="card">
-  <h2>SHADOW-MD PAIR</h2>
+  <img src="https://files.catbox.moe/y04tbj.jpg" alt="RANA FURQAN MD" style="width:100px;height:100px;object-fit:cover;border-radius:50%;margin-bottom:12px"><h2>RANA FURQAN MD</h2>
   <p>Apna number country code ke saath likho (+ ya 0 ke baghair).<br>Misal: 923001234567</p>
   <input id="n" type="tel" inputmode="numeric" placeholder="923001234567">
   <button id="b" onclick="go()">Get 8 Letter Code</button>
