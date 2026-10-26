@@ -30,13 +30,26 @@ export const command = {
       body += `*${cat}*\n${cmds.map(c => `${ctx.prefix || '.'}${c.name}`).join('\n')}\n\n`;
     }
 
-    body += `Channel: ${config.channelLink}\nGroup: ${config.groupLink}\n\nMeri JAAN`;
+    body += `Meri JAAN`;
+
+    // --- YEH HAI JAWAD WALA STYLE ---
+    const newsletterInfo = {
+      forwardingScore: 999,
+      isForwarded: true,
+      forwardedNewsletterMessageInfo: {
+        newsletterJid: config.channelJid || '120363025223630592@newsletter',
+        newsletterName: 'RANA FURQAN MD',
+        serverMessageId: 1
+      }
+    };
+
     try {
       const imageUrl = config.menuImage || config.botImage;
       if (imageUrl) {
         await ctx.sock.sendMessage(ctx.jid, {
           image: { url: imageUrl },
-          caption: body.trim()
+          caption: body.trim(),
+          contextInfo: newsletterInfo
         }, { quoted: ctx.m });
         return;
       }
@@ -44,6 +57,10 @@ export const command = {
       console.error('Menu image failed:', e.message);
     }
 
-    return ctx.reply(body.trim());
+    // Agar image fail ho jaye to text bhi usi style me
+    return await ctx.sock.sendMessage(ctx.jid, {
+      text: body.trim(),
+      contextInfo: newsletterInfo
+    }, { quoted: ctx.m });
   }
 };
