@@ -11,14 +11,14 @@ const __dirname = path.dirname(__filename);
 // ====== CONFIG - RANA FURQAN MD - POWERED BY MERI JAAN ======
 const BOT_NAME = 'RANA FURQAN MD';
 const POWERED_BY = 'MERI JAAN';
-const DP_URL = process.env.BOT_DP || 'https://files.catbox.moe/y04tbj.jpg'; // Apni DP ka link yahan daal do
+const DP_URL = process.env.BOT_DP || 'https://files.catbox.moe/y04tbj.jpg'; // Apni DP ka link yahan
 const PORT = process.env.PORT || 3000;
 const PREFIX = process.env.PREFIX || '.';
 
 global.messageStore = new Map();
 global.commands = new Map();
 
-// ====== WEB SERVER + PAIR SITE + DP ======
+// ====== WEB SERVER ======
 const app = express();
 
 app.get('/', (req, res) => {
@@ -39,7 +39,7 @@ app.get('/', (req, res) => {
     <body>
       <div class="box">
         <img src="${DP_URL}" class="dp" alt="Bot DP" onerror="this.src='https://files.catbox.moe/y04tbj.jpg'">
-        <h1>🌹 ${BOT_NAME} ONLINE 🌹</h1>
+        <h1>🌹 ${BOT_NAME} 🌹</h1>
         <h3 style="color:green;">Bot Status: ✅ Connected</h3>
         <p>🌹 POWERED BY ${POWERED_BY} 🌹</p>
         <hr style="margin:20px 0">
@@ -59,18 +59,6 @@ app.get('/', (req, res) => {
 app.get('/code', async (req, res) => {
   let num = req.query.number?.replace(/[^0-9]/g, '');
   if (!num) return res.send('<h2 style="text-align:center">Number dalo Meri JAAN! <br><a href="/">Back</a></h2>');
-  
-  res.send(`
-    <div style="text-align:center;margin-top:80px;font-family:sans-serif">
-      <img src="${DP_URL}" style="width:100px;height:100px;border-radius:50%;border:3px solid #25D366">
-      <h2>🌹 ${BOT_NAME} 🌹</h2>
-      <h3>Pair Code for ${num}</h3>
-      <p>Code Railway Logs me ayega - 2 second wait karo</p>
-      <p style="background:#f0f0f0;padding:15px;border-radius:10px;max-width:400px;margin:20px auto">Railway > Deployments > View Logs me dekho:<br><b>🌹 PAIR CODE FOR...</b></p>
-      <p><b>POWERED BY ${POWERED_BY}</b></p>
-      <a href="/">Back to Home</a>
-    </div>
-  `);
 
   try {
     const { state, saveCreds } = await useMultiFileAuthState('./auth');
@@ -83,15 +71,45 @@ app.get('/code', async (req, res) => {
       browser: [BOT_NAME, 'Chrome', '1.0.0']
     });
     sock.ev.on('creds.update', saveCreds);
-    setTimeout(async () => {
-      try {
-        if (!sock.authState.creds.registered) {
-          let code = await sock.requestPairingCode(num);
-          console.log(`\n\n🌹 PAIR CODE FOR ${num}: ${code} - POWERED BY ${POWERED_BY} 🌹\n\n`);
-        }
-      } catch(e) { console.log('Pair Error: ' + e.message); }
-    }, 3000);
-  } catch(e) { console.log(e) }
+
+    await new Promise(r => setTimeout(r, 2000));
+
+    if (!sock.authState.creds.registered) {
+      let code = await sock.requestPairingCode(num);
+      console.log(`🌹 PAIR CODE FOR ${num}: ${code} - POWERED BY ${POWERED_BY} 🌹`);
+      
+      return res.send(`
+        <html>
+        <head><title>Pair Code - ${BOT_NAME}</title><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body{text-align:center;font-family:sans-serif;background:#f0f2f5;padding:20px}
+          .box{background:white;padding:30px;border-radius:20px;max-width:420px;margin:40px auto;box-shadow:0 5px 30px rgba(0,0,0,0.1)}
+          .dp{width:110px;height:110px;border-radius:50%;border:4px solid #25D366;object-fit:cover}
+          .code{font-size:36px;font-weight:bold;letter-spacing:7px;background:#111;color:#25D366;padding:20px;border-radius:15px;margin:20px 0}
+          button{padding:12px 25px;background:#25D366;color:white;border:none;border-radius:10px;font-weight:bold;cursor:pointer}
+        </style>
+        </head>
+        <body>
+          <div class="box">
+            <img src="${DP_URL}" class="dp">
+            <h2>🌹 ${BOT_NAME} 🌹</h2>
+            <h3>Pair Code for ${num}</h3>
+            <div class="code">${code}</div>
+            <p>WhatsApp > Linked Devices > Link with Phone Number</p>
+            <p style="color:red;font-size:13px">Code 30 second ke liye valid hai</p>
+            <p><b>🌹 POWERED BY ${POWERED_BY} 🌹</b></p>
+            <a href="/"><button>Back to Home</button></a>
+          </div>
+        </body>
+        </html>
+      `);
+    } else {
+      res.send(`<h2 style="text-align:center">Already Paired Meri JAAN! <br><a href="/">Home</a></h2>`);
+    }
+  } catch(e) {
+    console.log('Pair Error: ' + e.message);
+    res.send(`<h3 style="text-align:center">Error: ${e.message} <br> Dobara try karo Meri JAAN! <br><a href="/">Back</a></h3>`);
+  }
 });
 
 app.listen(PORT, () => console.log(`🌐 ${BOT_NAME} Web + Pair Server Live on ${PORT} - POWERED BY ${POWERED_BY}`));
@@ -129,7 +147,7 @@ async function onMessage(sock, upsert) {
     if (!command) return;
     const ctx = { sock, jid: from, m: msg, args, prefix: PREFIX, sender: from.endsWith('@g.us') ? msg.key.participant : from, reply: async (txt) => await sock.sendMessage(from, { text: txt }, { quoted: msg }) };
     await command.run(ctx);
-  } catch (e) { console.log('Message Error: ' + e.message); }
+  } catch (e) {}
 }
 
 async function startBot() {
@@ -160,10 +178,9 @@ async function startBot() {
         if (!ownerJid && process.env.OWNER_NUMBER) ownerJid = process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         if (ownerJid) {
           const caption = `🌹 ${BOT_NAME} CONNECTED 🌹\n\n✅ Bot is Online!\n\n🌹 POWERED BY ${POWERED_BY} 🌹`;
-          // Yahan wahi DP ayegi jo Menu wali hai - BOT ki DP
           await sock.sendMessage(ownerJid, { image: { url: botPpUrl }, caption });
         }
-      } catch(e) { console.log('Connect DP Error: ' + e.message); }
+      } catch(e) {}
     }
   });
   sock.ev.on('messages.upsert', async (upsert) => {
