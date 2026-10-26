@@ -1,85 +1,39 @@
 export const command = {
   name: 'video',
-  aliases: ['fb', 'tiktok', 'insta', 'ytvideo'],
+  aliases: ['ytv', 'ytmp4'],
   category: 'DOWNLOADER',
-  description: 'Download any video - FB, TikTok, IG, YT',
-
+  description: 'Download video',
   run: async (ctx) => {
-    const url = ctx.args[0];
+    const query = ctx.args.join(' ');
     const { sock, jid, m } = ctx;
-
-    if (!url) {
-      return await ctx.reply(
-`╭───❀ 🌹 ❀───╮
-   🌹 𝐕𝐈𝐃𝐄𝐎 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑 🌹
-╰───❀ 🌹 ❀───╯
-
-*Use:* ${ctx.prefix || '.'}video <link>
-
-*Supported:*
-  ◦ Facebook
-  ◦ TikTok
-  ◦ Instagram
-  ◦ YouTube
-
-*Example:*
-  ◦ ${ctx.prefix || '.'}video https://fb.watch/xyz
-  ◦ ${ctx.prefix || '.'}video https://vt.tiktok.com/xyz`
-      );
-    }
-
-    if (!url.startsWith('http')) {
-      return await ctx.reply('❌ Meri JAAN sahi link bhejo 🌹');
-    }
-
+    if (!query) return await ctx.reply(`*Example:* ${ctx.prefix}video Pasoori`);
     try {
-      await ctx.reply('⏳ *Meri JAAN video download ho rahi hai...* 🌹');
-
-      // --- FREE ALL-IN-ONE API ---
-      const api = `https://api.nexoracle.com/downloader/all?url=${encodeURIComponent(url)}`;
-      const res = await fetch(api);
-      const data = await res.json();
-
-      if (!data || !data.result || !data.result.url) {
-        throw new Error('API failed');
-      }
-
-      const videoUrl = data.result.url;
-      const title = data.result.title || 'RANA FURQAN MD Video';
-
-      await sock.sendMessage(jid, {
-        video: { url: videoUrl },
-        caption: `╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
-   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
-╰───❀ 🌹 ❀───╯
-
-*Title:* ${title}
-
-> Downloaded by ${ctx.config?.botName || 'RANA FURQAN MD'}`,
-        mimetype: 'video/mp4'
-      }, { quoted: m });
-
-    } catch (e) {
-      console.log('video.js error:', e);
-      // --- BACKUP API ---
+      await sock.sendMessage(jid, { react: { text: '🎬', key: m.key } });
+      await ctx.reply(`⏳ *Searching video for "${query}"...*`);
+      let videoUrl = '', title = query, thumbnail = '', channel = '';
       try {
-        const backupApi = `https://api.davidcyriltech.my.id/download/all?url=${encodeURIComponent(url)}`;
-        const res2 = await fetch(backupApi);
-        const data2 = await res2.json();
-        
-        if (data2 && data2.result && data2.result.video) {
-          await sock.sendMessage(jid, {
-            video: { url: data2.result.video },
-            caption: `🌹💖 Powered by Meri JAAN 💖🌹`,
-            mimetype: 'video/mp4'
-          }, { quoted: m });
-          return;
-        }
-        throw new Error('backup failed');
-      } catch (err) {
-        await ctx.reply(`❌ Meri JAAN video download nahi ho saki 🌹\n\n*Error:* Link sahi nahi hai ya private video hai.`);
+        let r1 = await fetch(`https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`);
+        let j1 = await r1.json();
+        if (j1?.result?.[0]?.url) { videoUrl = j1.result[0].url; title = j1.result[0].title; thumbnail = j1.result[0].thumbnail; channel = j1.result[0].author || ''; }
+      } catch {}
+      if (!videoUrl) return await ctx.reply(`❌ *Video not found.*`);
+      let videoDownloadUrl = '';
+      try {
+        let d1 = await fetch(`https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoUrl)}`);
+        let jd1 = await d1.json();
+        videoDownloadUrl = jd1?.result?.downloadUrl || jd1?.result?.url;
+      } catch {}
+      if (!videoDownloadUrl) {
+        try {
+          let d2 = await fetch(`https://api.vreden.my.id/api/ytmp4?url=${encodeURIComponent(videoUrl)}`);
+          let jd2 = await d2.json();
+          videoDownloadUrl = jd2?.result?.download || jd2?.result?.url;
+        } catch {}
       }
-    }
+      if (!videoDownloadUrl) throw new Error('API failed');
+      const caption = `╭───❀ 🌹 ❀───╮\n   🌹 𝐕𝐈𝐃𝐄𝐎 𝐅𝐎𝐔𝐍𝐃 🌹\n╰───❀ 🌹 ❀───╯\n\n*🎬 Title:* ${title}\n*📺 Channel:* ${channel}\n*🔗 Link:* ${videoUrl}\n\n*📥 Sending video now...*\n\n╭───❀ 🌹 ❀───╮\n   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹\n   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖\n╰───❀ 🌹 ❀───╯`;
+      await sock.sendMessage(jid, { video: { url: videoDownloadUrl }, mimetype: 'video/mp4', fileName: `${title}.mp4`, caption: caption }, { quoted: m });
+      await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
+    } catch (e) { await ctx.reply(`❌ *Failed to download video.*\n\n╭───❀ 🌹 ❀───╮\n   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹\n   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖\n╰───❀ 🌹 ❀───╯`); }
   }
 };
