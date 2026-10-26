@@ -1,4 +1,3 @@
-
 import fs from 'fs';
 import path from 'path';
 
@@ -38,7 +37,14 @@ export function checkSession() {
   }
 }
 
-export function keepAliveStatus() {
+export function keepAlive() {
+  return {
+    botName: BOT_NAME,
+    sessionAvailable: checkSession()
+  };
+}
+
+export function KeepAliveStatus() {
   return {
     botName: BOT_NAME,
     sessionAvailable: checkSession()
@@ -48,7 +54,8 @@ export function keepAliveStatus() {
 export default {
   name: 'keepAlive',
   checkSession,
-  keepAliveStatus
+  keepAlive,
+  KeepAliveStatus
 };
 
 log('KeepAlive module loaded.');
