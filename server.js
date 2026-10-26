@@ -40,7 +40,9 @@ function createServer({ config, manager, logger }) {
 
   const gc = setInterval(() => {
     const now = Date.now();
-    for (const [ip, arr] of hits) if (!arr.some((t) => now - t < 60000)) hits.delete(ip);
+    for (const [ip, arr] of hits) {
+      if (!arr.some((t) => now - t < 60000)) hits.delete(ip);
+    }
   }, 60000);
   gc.unref?.();
 
@@ -66,7 +68,9 @@ function createServer({ config, manager, logger }) {
       const attempt = await manager.startPairing(req.body && req.body.number);
       res.status(201).json({ id: attempt.id, ...manager.getPublic(attempt.id) });
     } catch (e) {
-      if (e instanceof PairingError) return res.status(e.httpStatus).json({ error: e.message });
+      if (e instanceof PairingError) {
+        return res.status(e.httpStatus).json({ error: e.message });
+      }
       logger.error({ err: e.message }, 'pairing start failed');
       res.status(500).json({ error: 'Unexpected server error. Please try again.' });
     }
@@ -76,14 +80,20 @@ function createServer({ config, manager, logger }) {
 
   app.get('/api/pair/:id', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    if (!validId(req.params.id)) return res.status(404).json({ error: 'Unknown pairing attempt.' });
+    if (!validId(req.params.id)) {
+      return res.status(404).json({ error: 'Unknown pairing attempt.' });
+    }
     const view = manager.getPublic(req.params.id);
-    if (!view) return res.status(404).json({ error: 'Unknown or expired pairing attempt.' });
+    if (!view) {
+      return res.status(404).json({ error: 'Unknown or expired pairing attempt.' });
+    }
     res.json(view);
   });
 
   app.delete('/api/pair/:id', (req, res) => {
-    if (!validId(req.params.id) || !manager.cancel(req.params.id)) return res.status(404).json({ error: 'Unknown pairing attempt.' });
+    if (!validId(req.params.id) || !manager.cancel(req.params.id)) {
+      return res.status(404).json({ error: 'Unknown pairing attempt.' });
+    }
     res.json({ ok: true });
   });
 
@@ -92,7 +102,9 @@ function createServer({ config, manager, logger }) {
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
   app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
-    if (err && err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request body.' });
+    if (err && err.type === 'entity.parse.failed') {
+      return res.status(400).json({ error: 'Invalid request body.' });
+    }
     logger.error({ err: err && err.message }, 'express error');
     res.status(500).json({ error: 'Unexpected server error.' });
   });
