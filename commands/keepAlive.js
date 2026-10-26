@@ -1,11 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 
-const BOT_NAME = 'Shadow MD Mini';
-const AUTH_DIR = './auth_info_baileys';
+const BOT_NAME = 'RANA FURQAN MD';
+const AUTH_DIR = './auth';
 
 function log(message) {
-  console.log(`[${BOT_NAME}] ${message}`);
+  console.log(`[🌹 ${BOT_NAME} - POWERED BY MERI JAAN 🌹] ${message}`);
 }
 
 export function checkSession() {
@@ -28,7 +28,7 @@ export function checkSession() {
       return false;
     }
 
-    log('Session credentials file found.');
+    log('Session credentials file found. ✅');
     return true;
 
   } catch (error) {
@@ -40,6 +40,7 @@ export function checkSession() {
 export function keepAlive() {
   return {
     botName: BOT_NAME,
+    poweredBy: 'MERI JAAN',
     sessionAvailable: checkSession()
   };
 }
@@ -47,6 +48,7 @@ export function keepAlive() {
 export function KeepAliveStatus() {
   return {
     botName: BOT_NAME,
+    poweredBy: 'MERI JAAN',
     sessionAvailable: checkSession()
   };
 }
@@ -58,4 +60,4 @@ export default {
   KeepAliveStatus
 };
 
-log('KeepAlive module loaded.');
+log('KeepAlive module loaded - POWERED BY MERI JAAN 🌹');
