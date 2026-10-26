@@ -8,22 +8,79 @@ import P from 'pino';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ===== 1. FIX FOR RAILWAY 502 + POWERED BY MERI JAAN =====
+// ===== WEB SERVER + PAIR SITE - POWERED BY MERI JAAN =====
 const app = express();
 const PORT = process.env.PORT || 3000;
+
 app.get('/', (req, res) => {
   res.send(`
-    <div style="text-align:center; margin-top:100px; font-family:sans-serif;">
-      <h1>🌹 RANA FURQAN MD ONLINE 🌹</h1>
-      <h2 style="color:green;">Bot Status: ✅ Connected</h2>
-      <h3>🌹 POWERED BY MERI JAAN 🌹</h3>
-      <p>Bot is running successfully</p>
-    </div>
+    <html>
+    <head><title>RANA FURQAN MD - MERI JAAN</title>
+    <style>
+      body{text-align:center;font-family:sans-serif;padding:20px;background:#f5f5f5}
+      .box{background:white;padding:30px;border-radius:15px;max-width:400px;margin:50px auto;box-shadow:0 0 20px #ccc}
+      input{padding:12px;width:80%;border-radius:8px;border:1px solid #ccc;margin:10px}
+      button{padding:12px 25px;background:#25D366;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold}
+      h1{color:#111}
+    </style>
+    </head>
+    <body>
+      <div class="box">
+        <h1>🌹 RANA FURQAN MD ONLINE 🌹</h1>
+        <h3 style="color:green;">Bot Status: ✅ Connected</h3>
+        <p>🌹 POWERED BY MERI JAAN 🌹</p>
+        <hr>
+        <h3>Pair Your Number</h3>
+        <form action="/code" method="get">
+          <input type="text" name="number" placeholder="9230XXXXXXXX - Number without +" required>
+          <br>
+          <button type="submit">GET PAIR CODE</button>
+        </form>
+        <p style="font-size:12px;margin-top:20px;">Bot is running successfully</p>
+      </div>
+    </body>
+    </html>
   `);
 });
-app.listen(PORT, () => console.log(`🌐 Web Server Live on ${PORT} - RANA FURQAN MD - POWERED BY MERI JAAN`));
-// ===== END FIX =====
 
+app.get('/code', async (req, res) => {
+  let num = req.query.number?.replace(/[^0-9]/g, '');
+  if (!num) return res.send('<h3>Number dalo Meri JAAN!</h3><a href="/">Back</a>');
+  
+  res.send(`
+    <div style="text-align:center;margin-top:100px;font-family:sans-serif">
+      <h2>🌹 RANA FURQAN MD 🌹</h2>
+      <h3>Pair Code generating for: ${num}</h3>
+      <p>Please wait... Check Railway Logs for Code</p>
+      <p><b>POWERED BY MERI JAAN</b></p>
+      <a href="/">Back to Home</a>
+    </div>
+  `);
+
+  // Generate Pair Code in background
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState('./auth');
+    const { version } = await fetchLatestBaileysVersion();
+    const sock = makeWASocket({
+      version,
+      auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'silent' })) },
+      logger: P({ level: 'silent' }),
+      printQRInTerminal: false,
+      browser: ['RANA FURQAN MD', 'Chrome', '1.0.0']
+    });
+    setTimeout(async () => {
+      if (!sock.authState.creds.registered) {
+        let code = await sock.requestPairingCode(num);
+        console.log(`\n\n🌹 PAIR CODE FOR ${num}: ${code} - POWERED BY MERI JAAN 🌹\n\n`);
+      }
+    }, 3000);
+  } catch(e) { console.log(e) }
+});
+
+app.listen(PORT, () => console.log(`🌐 Web + Pair Server Live on ${PORT} - POWERED BY MERI JAAN`));
+// ===== END =====
+
+// Baki tumhara bot wala code neeche same rahega...
 global.messageStore = new Map();
 global.commands = new Map();
 
@@ -44,8 +101,7 @@ async function loadCommands() {
     } catch (e) { console.log(`❌ ${file}: ${e.message}`); }
   }
 }
-
-async function onMessage(sock, upsert) {
+async function onMessage(sock, upsert) { /* tumhara purana onMessage */ 
   try {
     const msg = upsert.messages?.[0];
     if (!msg || !msg.message || msg.key.fromMe) return;
@@ -62,7 +118,6 @@ async function onMessage(sock, upsert) {
     await command.run(ctx);
   } catch (e) {}
 }
-
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth');
   const { version } = await fetchLatestBaileysVersion();
@@ -88,19 +143,7 @@ async function startBot() {
         if (fs.existsSync('./data/antidelete.json')) ownerJid = JSON.parse(fs.readFileSync('./data/antidelete.json')).ownerJid;
         if (!ownerJid && process.env.OWNER_NUMBER) ownerJid = process.env.OWNER_NUMBER.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         if (ownerJid) {
-          const caption = `╭━━━━━━━━━━━━━━━━━━━╮
-┃  🌹 𝐑𝐀𝐍𝐀 𝐅𝐔𝐑𝐐𝐀𝐍 𝐌𝐃 🌹  ┃
-╰━━━━━━━━━━━━━━━━━━━╯
-
-✅ *BOT CONNECTED SUCCESSFULLY!*
-
-BOT NAME: RANA FURQAN MD
-STATUS: ONLINE ✅
-
-╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
-   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
-╰───❀ 🌹 ❀───╯`;
+          const caption = `🌹 RANA FURQAN MD CONNECTED 🌹\n\nPOWERED BY MERI JAAN`;
           await sock.sendMessage(ownerJid, { image: { url: botPpUrl }, caption });
         }
       } catch {}
@@ -122,7 +165,7 @@ STATUS: ONLINE ✅
             const stored = global.messageStore.get(msg.message.protocolMessage.key?.id);
             if (stored) {
               const deleterJid = msg.key.participant || msg.participant || msg.key.remoteJid;
-              await sock.sendMessage(dbAD.ownerJid, { text: `🚨 *DELETED by ${deleterJid.split('@')[0]}* https://wa.me/${deleterJid.split('@')[0]}\n\nPOWERED BY MERI JAAN` });
+              await sock.sendMessage(dbAD.ownerJid, { text: `DELETED by ${deleterJid.split('@')[0]} - POWERED BY MERI JAAN` });
               try { await sock.sendMessage(dbAD.ownerJid, stored.message); } catch {}
             }
           }
