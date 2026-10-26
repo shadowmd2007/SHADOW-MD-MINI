@@ -1,4 +1,3 @@
-
 try {
   const d = await import('dotenv');
   (d.default ?? d).config();
@@ -14,15 +13,16 @@ export const config = {
   presName: "RANA FURQAN",
   channelName: "RANA FURQAN MD Channel",
   channelLink: "https://whatsapp.com/channel/0029VbCiT0g8vd1P3dJZqm2J",
+  channelJid: "0029VbCiT0g8vd1P3dJZqm2J@newsletter",
   groupName: "RANA FURQAN MD Group",
   groupLink: "https://chat.whatsapp.com/FGW9EITclIg2obBhZkkVTn",
-  githubRepository: process.env.GITHUB_REPO || "https://whatsapp.com/channel/0029VbCiT0g8vd1P3dJZqm2J",
+  githubRepository: "https://whatsapp.com/channel/0029VbCiT0g8vd1P3dJZqm2J",
   menuImage: "https://files.catbox.moe/y04tbj.jpg",
   botImage: "https://files.catbox.moe/y04tbj.jpg",
   prefix: ".",
   mode: "public",
   version: "5.0.0",
-  authDir: process.env.AUTH_DIR || "./auth",
+  authDir: "./auth",
   port: process.env.PORT || 3000,
   keywords: ["mashaallah", "mashallah", "nice", "cute", "wah", "best", "behtreen", "behtarin", "ok", "okay", "beautiful", "good", "wow", "lovely", "amazing", "excellent", "zabardast", "subhanallah", "super", "awesome"]
 };
