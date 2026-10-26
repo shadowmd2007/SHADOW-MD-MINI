@@ -1,2 +1,19 @@
-import { config } from "../config.js"; import { reply } from "../lib/command-utils.js";
-export const command = { name:"botinfo", category:"MAIN", description:"Show bot configuration summary.", run: async ({sock,remote,msg}) => reply(sock,remote,msg,`🤖 *${config.botName}*\nVersion: ${config.version}\nOwner: ${config.ownerName}\nPrefix: ${config.prefix}\nMode: ${config.mode}\nGitHub: ${config.githubRepository}`) };
+export const command = {
+  name: "botinfo",
+  run: async ({ sock, jid, m, prefix }) => {
+    const text = `
+┏━━━━━━━━━━━━━━━━━━━━┓
+┃ 🌹 RANA FURQAN MD 🌹 ┃
+┗━━━━━━━━━━━━━━━━━━━━┛
+
+🌹 VERSION : 5.0.0
+🌹 MODE : PUBLIC  
+🌹 PREFIX : ${prefix}
+🌹 COMMANDS : ${global.commands.size}
+🌹 OWNER : RANA KI JAAN
+
+🌹 POWERED BY MERI JAAN 🌹
+`;
+    await sock.sendMessage(jid, { text }, { quoted: m });
+  }
+}
