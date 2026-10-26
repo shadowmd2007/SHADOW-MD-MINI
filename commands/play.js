@@ -1,88 +1,81 @@
 export const command = {
   name: 'play',
-  aliases: ['song', 'mp3', 'ytaudio', 'playmp3'],
+  aliases: ['song', 'mp3', 'yta', 'music'],
   category: 'DOWNLOADER',
-  description: 'Download song from YouTube',
+  description: 'Download song',
 
   run: async (ctx) => {
     const query = ctx.args.join(' ');
     const { sock, jid, m } = ctx;
 
     if (!query) {
-      return await ctx.reply(
-`╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐋𝐀𝐘 𝐒𝐎𝐍𝐆 🌹
-╰───❀ 🌹 ❀───╯
-
-*Use:* ${ctx.prefix || '.'}play <song name>
-
-*Example:*
-  ◦ ${ctx.prefix || '.'}play Tere Bin
-  ◦ ${ctx.prefix || '.'}play Pasoori
-  ◦ ${ctx.prefix || '.'}play Jhol`
-      );
+      return await ctx.reply(`*Example:* ${ctx.prefix}play Pasoori`);
     }
 
     try {
-      await ctx.reply(`⏳ *Meri JAAN "${query}" dhoond rahi hun...* 🌹🎵`);
-
-      // --- YOUTUBE SEARCH + DOWNLOAD API 1 ---
-      let api = `https://api.nexoracle.com/youtube/search?query=${encodeURIComponent(query)}`;
-      let res = await fetch(api);
-      let data = await res.json();
+      await sock.sendMessage(jid, { react: { text: '🎵', key: m.key } });
+      
+      // Searching message - ENGLISH
+      await ctx.reply(`⏳ *Searching for "${query}"...*\n\n_Please wait Meri JAAN is finding your song_ 🎵`);
 
       let videoUrl = '';
       let title = query;
       let thumbnail = '';
+      let channel = '';
 
-      if (data && data.result && data.result.length > 0) {
-        videoUrl = data.result[0].url;
-        title = data.result[0].title;
-        thumbnail = data.result[0].thumbnail;
-      } else {
-        // Agar search fail ho to direct query ko hi use karo
-        videoUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+      try {
+        let r1 = await fetch(`https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`);
+        let j1 = await r1.json();
+        if (j1?.result?.[0]?.url) {
+          videoUrl = j1.result[0].url;
+          title = j1.result[0].title;
+          thumbnail = j1.result[0].thumbnail;
+          channel = j1.result[0].author || '';
+        }
+      } catch {}
+
+      if (!videoUrl) {
+        return await ctx.reply(`❌ *Song "${query}" not found.*`);
       }
 
-      // --- MP3 DOWNLOAD API ---
-      const dlApi = `https://api.davidcyriltech.my.id/download/ytmp3?url=${encodeURIComponent(videoUrl || query)}`;
-      const dlRes = await fetch(dlApi);
-      const dlData = await dlRes.json();
+      let audioUrl = '';
+      try {
+        let d1 = await fetch(`https://apis.davidcyriltech.my.id/download/ytmp3?url=${encodeURIComponent(videoUrl)}`);
+        let jd1 = await d1.json();
+        audioUrl = jd1?.result?.downloadUrl || jd1?.result?.download_url || jd1?.result?.url;
+      } catch {}
 
-      let audioUrl = dlData?.result?.downloadUrl || dlData?.result?.url || dlData?.url;
-
-      // --- BACKUP API 2 ---
       if (!audioUrl) {
-        const backupApi = `https://api.nexoracle.com/youtube/audio?url=${encodeURIComponent(videoUrl)}`;
-        const bRes = await fetch(backupApi);
-        const bData = await bRes.json();
-        audioUrl = bData?.result?.audio || bData?.result?.url;
-        title = bData?.result?.title || title;
-        thumbnail = bData?.result?.thumbnail || thumbnail;
+        try {
+          let d2 = await fetch(`https://api.vreden.my.id/api/ytmp3?url=${encodeURIComponent(videoUrl)}`);
+          let jd2 = await d2.json();
+          audioUrl = jd2?.result?.download || jd2?.result?.url;
+        } catch {}
       }
 
-      if (!audioUrl) throw new Error('No audio URL');
+      if (!audioUrl) throw new Error('API failed');
 
-      // --- SEND WITH THUMBNAIL ---
-      await sock.sendMessage(jid, {
-        image: { url: thumbnail || ctx.config?.menuImage },
-        caption: `╭───❀ 🌹 ❀───╮
+      const caption = `╭───❀ 🌹 ❀───╮
    🌹 𝐒𝐎𝐍𝐆 𝐅𝐎𝐔𝐍𝐃 🌹
 ╰───❀ 🌹 ❀───╯
 
 *🎵 Title:* ${title}
-*🎧 Requested:* ${query}
+*📺 Channel:* ${channel}
+*🔗 Link:* ${videoUrl}
 
-> _Audio bheja ja raha hai..._
+*🎧 Sending audio now... Please wait.*
 
 ╭───❀ 🌹 ❀───╮
    🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
    💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
 ╰───❀ 🌹 ❀───╯
-`
+`;
+
+      await sock.sendMessage(jid, {
+        image: { url: thumbnail || 'https://files.catbox.moe/y04tbj.jpg' },
+        caption: caption
       }, { quoted: m });
 
-      // --- SEND MP3 ---
       await sock.sendMessage(jid, {
         audio: { url: audioUrl },
         mimetype: 'audio/mpeg',
@@ -90,16 +83,11 @@ export const command = {
         ptt: false
       }, { quoted: m });
 
-      // --- SEND AS DOCUMENT ALSO FOR BEST QUALITY ---
-      // await sock.sendMessage(jid, {
-      //   document: { url: audioUrl },
-      //   mimetype: 'audio/mpeg',
-      //   fileName: `${title}.mp3`
-      // }, { quoted: m });
+      await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
 
     } catch (e) {
-      console.log('play.js error:', e);
-      await ctx.reply(`❌ Meri JAAN "${query}" nahi mila 🌹\n\n*Tip:* Koi aur naam se try karo, jaise "Pasoori song"`);
+      console.log('play error:', e);
+      await ctx.reply(`❌ *Failed to download song. Please try again after 2 minutes.*\n\n╭───❀ 🌹 ❀───╮\n   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹\n   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖\n╰───❀ 🌹 ❀───╯`);
     }
   }
 };
