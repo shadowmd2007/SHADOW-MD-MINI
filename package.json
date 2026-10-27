@@ -7,7 +7,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js && node --check commands.js && node --check handler.js"
+    "check": "node --check index.js && node --check server.js && node --check web.js && node --check commands.js && node --check handler.js && node --check config.js"
   },
   "engines": {
     "node": ">=20 <23"
