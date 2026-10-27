@@ -1,3 +1,4 @@
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -21,14 +22,73 @@ const AUTH = path.resolve(
 
 let socket = null;
 let pairingInProgress = false;
+let activeOwnerJid = null;
+
+const notifiedSockets = new WeakSet();
 
 const sleep = ms =>
   new Promise(resolve => setTimeout(resolve, ms));
 
+function normalizeNumber(number) {
+  return String(number || '').replace(/\D/g, '');
+}
+
+async function sendConnectedNotice(sock, ownerJid) {
+  if (!ownerJid || notifiedSockets.has(sock)) return;
+
+  // Prevent duplicate notifications for the same connection.
+  notifiedSockets.add(sock);
+
+  try {
+    const botJid = sock.user?.id;
+
+    let picture = null;
+
+    try {
+      const pictureUrl = await sock.profilePictureUrl(
+        botJid,
+        'image'
+      );
+
+      const response = await fetch(pictureUrl);
+
+      if (response.ok) {
+        picture = Buffer.from(
+          await response.arrayBuffer()
+        );
+      }
+    } catch {
+      // Continue with text notification if DP is unavailable.
+    }
+
+    const message =
+      '✅ WhatsApp Bot Connected Successfully!\n\n' +
+      '🤖 Your bot is now online.\n' +
+      '📱 Pairing and connection completed successfully.';
+
+    if (picture) {
+      await sock.sendMessage(ownerJid, {
+        image: picture,
+        caption: message
+      });
+    } else {
+      await sock.sendMessage(ownerJid, {
+        text: message
+      });
+    }
+
+    console.log('Connection notification sent.');
+  } catch (error) {
+    console.error(
+      'Connection notification error:',
+      error.message
+    );
+  }
+}
+
 export default async function (app) {
   app.get('/', async (req, res) => {
-    const number = String(req.query.number || '')
-      .replace(/\D/g, '');
+    const number = normalizeNumber(req.query.number);
 
     if (!number) {
       return res.sendFile(
@@ -50,21 +110,24 @@ export default async function (app) {
       });
     }
 
+    if (socket) {
+      return res.json({
+        status: socket.user ? 'connected' : 'connecting',
+        message: socket.user
+          ? 'WhatsApp already connected.'
+          : 'WhatsApp connection is already in progress.'
+      });
+    }
+
     pairingInProgress = true;
+
+    const ownerJid = `${number}@s.whatsapp.net`;
 
     try {
       fs.mkdirSync(AUTH, { recursive: true });
 
       const { state, saveCreds } =
         await useMultiFileAuthState(AUTH);
-
-      if (state.creds.registered) {
-        return res.json({
-          status: 'connected',
-          message:
-            'Session pehle se registered hai. Dobara pairing ki zaroorat nahi.'
-        });
-      }
 
       const sock = makeWASocket({
         auth: state,
@@ -77,15 +140,21 @@ export default async function (app) {
       });
 
       socket = sock;
+      activeOwnerJid = ownerJid;
 
       sock.ev.on('creds.update', saveCreds);
 
-      sock.ev.on('connection.update', update => {
+      sock.ev.on('connection.update', async update => {
         const { connection, lastDisconnect } = update;
 
         if (connection === 'open') {
           console.log(
             'WhatsApp connected successfully.'
+          );
+
+          await sendConnectedNotice(
+            sock,
+            activeOwnerJid
           );
         }
 
@@ -100,19 +169,28 @@ export default async function (app) {
 
           if (socket === sock) {
             socket = null;
+            activeOwnerJid = null;
           }
 
           if (statusCode === DisconnectReason.loggedOut) {
             console.log(
-              'WhatsApp logged out. Relink the device if needed.'
+              'WhatsApp logged out. Pair again to reconnect.'
             );
           } else {
             console.log(
-              'WhatsApp disconnected. Check connection and session.'
+              'WhatsApp disconnected. Check the session and reconnect.'
             );
           }
         }
       });
+
+      if (state.creds.registered) {
+        return res.json({
+          status: 'connecting',
+          message:
+            'Saved WhatsApp session is being connected. Check Railway Logs.'
+        });
+      }
 
       await sleep(1500);
 
@@ -138,11 +216,23 @@ export default async function (app) {
         error.message
       );
 
+      if (socket) {
+        try {
+          socket.end(undefined);
+        } catch {
+          // Ignore cleanup errors.
+        }
+
+        socket = null;
+        activeOwnerJid = null;
+      }
+
       return res.status(500).json({
         error:
           'Pairing fail hui. Railway Logs check karo.',
         details: error.message
       });
+
     } finally {
       pairingInProgress = false;
     }
