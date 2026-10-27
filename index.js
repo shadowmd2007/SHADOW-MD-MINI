@@ -14,111 +14,105 @@ const PORT = process.env.PORT || 3000;
 
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-let sockInstance = null;
+let sock = null;
+let authState = null;
+let saveCredsGlobal = null;
 
-// --- Pairing Page HTML - POWERED BY MERI JAAN ---
+// --- Pair HTML ---
 const pairHTML = `
-<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RANA FURQAN MD - PAIR</title>
-<style>
-body{background:#111;color:#fff;font-family:sans-serif;text-align:center;padding:20px}
-.card{background:#1e1e1e;padding:20px;border-radius:15px;max-width:400px;margin:auto;border:1px solid #333}
-img{width:120px;height:120px;border-radius:50%;border:3px solid #a855f7;margin:10px}
-input{width:90%;padding:12px;margin:10px 0;border-radius:8px;border:none;background:#2a2a2a;color:#fff}
-button{background:#a855f7;color:#fff;padding:12px 25px;border:none;border-radius:8px;font-weight:bold;cursor:pointer;width:95%}
-h2{color:#a855f7}
-.code{font-size:28px;letter-spacing:5px;background:#000;padding:15px;border-radius:10px;margin:15px 0;border:1px dashed #a855f7}
-</style></head><body>
-<div class="card">
-<img src="https://files.catbox.moe/y04tbj.jpg" alt="RANA">
-<h2>🌹 RANA FURQAN MD 🌹</h2>
+<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RANA FURQAN MD</title>
+<style>body{background:#111;color:#fff;text-align:center;font-family:sans-serif;padding:20px}
+.card{background:#1e1e1e;padding:25px;border-radius:20px;max-width:380px;margin:auto;border:1px solid #a855f7}
+img{width:130px;height:130px;border-radius:50%;border:3px solid #a855f7}
+input{width:90%;padding:13px;margin:15px 0;border-radius:10px;border:none;background:#2a2a2a;color:#fff;font-size:16px}
+button{background:#a855f7;color:#fff;padding:13px 20px;border:none;border-radius:10px;font-weight:bold;width:95%;font-size:16px}
+.code{font-size:30px;letter-spacing:4px;background:#000;padding:18px;border-radius:12px;margin:15px 0;border:1px dashed #a855f7}</style>
+</head><body><div class="card">
+<img src="https://files.catbox.moe/y04tbj.jpg">
+<h2 style="color:#a855f7">🌹 RANA FURQAN MD 🌹</h2>
 <p>POWERED BY MERI JAAN</p>
-<input type="text" id="num" placeholder="9230XXXXXXX - Number likho (without +)">
+<input id="num" placeholder="9230XXXXXXX">
 <button onclick="getCode()">GET PAIR CODE</button>
 <div id="result"></div>
-<p style="margin-top:20px;font-size:12px;color:#888">Commands Loaded: 108<br>BOT IS RUNNING</p>
+<p style="font-size:12px;color:#888;margin-top:20px">Commands: 108 | BOT RUNNING</p>
 </div>
 <script>
 async function getCode(){
  let n=document.getElementById('num').value.replace(/[^0-9]/g,'');
- if(!n){alert('Number likho Meri JAAN');return;}
- document.getElementById('result').innerHTML='Generating...';
+ if(n.length<11){alert('Sahi number likho Meri JAAN');return;}
+ document.getElementById('result').innerHTML='Wait Meri JAAN... 5 sec';
  let r=await fetch('/code?number='+n);
  let d=await r.json();
- if(d.code){document.getElementById('result').innerHTML='<div class=code>'+d.code+'</div><p>WhatsApp > Linked Devices > Link with phone number pe ye code lagao!</p>';}
- else{document.getElementById('result').innerHTML='<p style=color:red>'+ (d.error||'Error')+'</p>';}
+ if(d.code){document.getElementById('result').innerHTML='<div class=code>'+d.code+'</div><p>WhatsApp > Linked Devices > Link with phone number</p>';}
+ else document.getElementById('result').innerHTML='<p style=color:red>'+d.error+'</p>';
 }
 </script></body></html>
 `;
 
-app.get('/', (req, res) => res.send(pairHTML));
+app.get('/', (req,res)=>res.send(pairHTML));
 
-app.get('/code', async (req, res) => {
-  let num = req.query.number;
-  if (!num) return res.json({ error: 'Number do Meri JAAN' });
-  num = num.replace(/[^0-9]/g,'');
+app.get('/code', async (req,res)=>{
+  let num = (req.query.number||'').replace(/[^0-9]/g,'');
+  if(!num) return res.json({error:'Number do'});
   try {
-    const { state } = await useMultiFileAuthState('auth_info_baileys');
-    const tempSock = makeWASocket({
-      auth: state,
-      logger: P({ level: 'silent' }),
-      browser: Browsers.macOS('Desktop'),
-      printQRInTerminal: false
-    });
-    await delay(3000);
-    let code = await tempSock.requestPairingCode(num);
+    if(!sock){
+      // Agar bot start nahi hua to pehle auth lo
+      const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+      authState = state; saveCredsGlobal = saveCreds;
+      sock = makeWASocket({ auth: state, logger: P({level:'silent'}), browser: Browsers.macOS('Desktop'), printQRInTerminal:false });
+      sock.ev.on('creds.update', saveCreds);
+      await delay(2000);
+    }
+    // IMPORTANT: Single socket se code mango - yahi fix hai
+    await delay(1000);
+    let code = await sock.requestPairingCode(num);
     code = code?.match(/.{1,4}/g)?.join('-') || code;
-    res.json({ code });
-  } catch (e) {
-    res.json({ error: e.message });
+    console.log(`✅ PAIR CODE ${code} for ${num}`);
+    res.json({code});
+  } catch(e){
+    console.log('Pair Error:', e.message);
+    res.json({error: 'Try again after 1 min: '+e.message});
   }
 });
 
-app.get('/status', (req,res)=> res.send(`<h1>🌹 RANA FURQAN MD ACTIVE 🌹</h1><p>POWERED BY MERI JAAN</p><p>Commands: ${global.commands.size}</p>`));
+app.listen(PORT, ()=>console.log(`✅ SERVER ON ${PORT}`));
 
-app.listen(PORT, () => console.log(`✅ WEB + PAIR SERVER ON ${PORT}`));
-
-// --- Bot Commands Loading ---
-async function loadCommands() {
-  const cmdPath = path.join(__dirname, 'commands');
-  if (!fs.existsSync(cmdPath)) return;
-  const files = fs.readdirSync(cmdPath).filter(f => f.endsWith('.js'));
-  for (const file of files) {
-    try {
-      const mod = await import(`file://${path.join(cmdPath, file)}?t=${Date.now()}`);
-      const cmd = mod.command || mod.default || mod;
-      if (!cmd?.name) continue;
-      global.commands.set(cmd.name.toLowerCase(), cmd);
-      if (cmd.aliases) for (const a of cmd.aliases) global.commands.set(a.toLowerCase(), cmd);
-    } catch (e) { console.log(`❌ ${file}: ${e.message}`); }
+// --- Commands ---
+async function loadCommands(){
+  const p = path.join(__dirname,'commands');
+  if(!fs.existsSync(p)) return;
+  for(const f of fs.readdirSync(p).filter(x=>x.endsWith('.js'))){
+    try{
+      const m = await import(`file://${path.join(p,f)}?t=${Date.now()}`);
+      const c = m.command||m.default||m;
+      if(!c?.name) continue;
+      global.commands.set(c.name.toLowerCase(), c);
+      if(c.aliases) for(const a of c.aliases) global.commands.set(a.toLowerCase(), c);
+    }catch(e){ console.log(`❌ ${f}: ${e.message}`); }
   }
-  console.log(`✅ TOTAL ${global.commands.size} COMMANDS`);
+  console.log(`✅ ${global.commands.size} COMMANDS`);
 }
 
-async function startBot() {
+async function startBot(){
   await loadCommands();
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-  const sock = makeWASocket({ auth: state, logger: P({ level: 'silent' }), browser: Browsers.macOS('Desktop'), syncFullHistory: false, markOnlineOnConnect: false, getMessage: async () => undefined });
-  sockInstance = sock;
+  authState = state; saveCredsGlobal = saveCreds;
+  sock = makeWASocket({ auth: state, logger: P({level:'silent'}), browser: Browsers.macOS('Desktop'), syncFullHistory:false, markOnlineOnConnect:false, getMessage: async()=>undefined });
   sock.ev.on('creds.update', saveCreds);
-  sock.ev.on('connection.update', (u) => {
-    if (u.connection === 'close' && u.lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) setTimeout(startBot, 3000);
-    if (u.connection === 'open') console.log('✅ BOT CONNECTED - POWERED BY MERI JAAN');
+  sock.ev.on('connection.update', (u)=>{
+    if(u.connection==='close' && u.lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) setTimeout(startBot, 3000);
+    if(u.connection==='open') console.log('✅ BOT CONNECTED - POWERED BY MERI JAAN');
   });
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    const msg = messages[0];
-    if (!msg?.message) return;
-    const from = msg.key.remoteJid;
-    if (from.includes('broadcast')) return;
-    const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || '';
-    if (!text.startsWith(PREFIX)) return;
+  sock.ev.on('messages.upsert', async ({messages})=>{
+    const msg = messages[0]; if(!msg?.message) return;
+    const from = msg.key.remoteJid; if(from.includes('broadcast')) return;
+    const text = msg.message.conversation||msg.message.extendedTextMessage?.text||msg.message.imageMessage?.caption||'';
+    if(!text.startsWith(PREFIX)) return;
     const args = text.slice(PREFIX.length).trim().split(/ +/);
-    const cmdName = args.shift().toLowerCase();
-    const cmd = global.commands.get(cmdName);
-    if (!cmd) return;
-    await cmd.run({ sock, jid: from, from, m: msg, msg, args, text: args.join(' '), prefix: PREFIX, isGroup: from.endsWith('@g.us'), sender: msg.key.participant || from, reply: async (t) => sock.sendMessage(from, { text: t }, { quoted: msg }).catch(()=>sock.sendMessage(from, {text: t})) });
+    const cmd = global.commands.get(args.shift().toLowerCase()); if(!cmd) return;
+    await cmd.run({ sock, jid: from, from, m: msg, msg, args, text: args.join(' '), prefix: PREFIX, isGroup: from.endsWith('@g.us'), sender: msg.key.participant||from, reply: async(t)=>sock.sendMessage(from,{text:t},{quoted:msg}).catch(()=>sock.sendMessage(from,{text:t})) });
   });
 }
 startBot();
