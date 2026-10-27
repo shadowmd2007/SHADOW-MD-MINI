@@ -162,11 +162,13 @@ async function startBot(){
     }
   });
 
+  // ===== YAHAN SE FIX KIYA HAI - BAQII SAME HAI =====
   sock.ev.on('messages.upsert', async (upsert)=>{
     try{
       if(upsert.type !== 'notify') return;
       const msg = upsert.messages?.[0];
       if(!msg || !msg.message) return;
+      // Message yourself pe bhi kaam karega - fromMe check nahi
       let text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || msg.message.videoMessage?.caption || '';
       if(!text) return;
       text = text.trim();
@@ -185,7 +187,14 @@ async function startBot(){
         prefix: PREFIX,
         sender: from.endsWith('@g.us') ? msg.key.participant : from,
         isGroup: from.endsWith('@g.us'),
-        reply: async (txt) => await sock.sendMessage(from, { text: txt }, { quoted: msg })
+        // Reply fix - Message yourself pe quoted fail hota tha, ab fix hai
+        reply: async (txt) => {
+          try {
+            return await sock.sendMessage(from, { text: txt }, { quoted: msg });
+          } catch {
+            return await sock.sendMessage(from, { text: txt });
+          }
+        }
       };
       await command.run(ctx);
       console.log(`✅ Executed: ${cmdName}`);
