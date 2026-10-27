@@ -1,127 +1,192 @@
+// ========== RANA FURQAN MD - V5 FINAL - FULL INDEX ==========
 const express = require('express');
-const { default: makeWASocket, useMultiFileAuthState, Browsers, DisconnectReason, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
-const pino = require('pino');
 const fs = require('fs');
+const pino = require('pino');
+const { default: makeWASocket, useMultiFileAuthState, Browsers, DisconnectReason } = require('@whiskeysockets/baileys');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const AUTH_FOLDER = 'auth_info_baileys';
+const AUTH_FOLDER = './auth_info_baileys';
 
-app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-let pairingCode = null;
-let isConnected = false;
+let globalSock = null;
+let lastPairingCode = null;
+let connectionStatus = 'DISCONNECTED';
 
-// HTML PAGE
+// ===== MAIN PAIRING PAGE =====
 app.get('/', async (req, res) => {
-  const number = req.query.number;
-  if (number) {
-    try {
-      let cleanNumber = number.replace(/[^0-9]/g, '');
-      console.log('Requesting code for:', cleanNumber);
-      // Agar socket bana hua hai to usi se code lo
-      if (global.sock && !global.sock.authState.creds.registered) {
-        await new Promise(r => setTimeout(r, 2000));
-        pairingCode = await global.sock.requestPairingCode(cleanNumber);
-        console.log('CODE:', pairingCode);
-      }
-    } catch (e) {
-      console.log('Pairing Error:', e.message);
-      pairingCode = 'ERROR: ' + e.message;
-    }
-  }
+    const phoneNumber = req.query.number;
 
-  res.send(`
-  <html><head><title>RANA FURQAN MD</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body{background:#000;color:#fff;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
-    .card{background:#111;padding:30px;border-radius:20px;text-align:center;border:2px solid red;box-shadow:0 0 20px red;width:320px}
-    input{width:90%;padding:12px;border-radius:10px;border:none;margin:10px 0;text-align:center;font-size:18px}
-    button{width:95%;padding:12px;background:red;color:#fff;border:none;border-radius:10px;font-weight:bold;cursor:pointer}
-    .code{font-size:38px;color:#00ff00;background:#222;padding:10px;margin-top:15px;border-radius:10px;letter-spacing:4px}
-    .green{color:#00ff00} .yellow{color:yellow}
-  </style></head><body>
-  <div class="card">
-    <h2 style="color:red">🔥 RANA FURQAN MD 🔥</h2>
-    ${isConnected ? '<h3 class="green">✅ WHATSAPP CONNECTED!</h3><p>Bot Active Hai</p>' : ''}
-    ${!isConnected ? `
-    <p class="yellow">${pairingCode ? 'Neeche Code Hai' : 'Number Daalo 92 ke sath'}</p>
-    <form method="GET">
-      <input name="number" placeholder="9230xxxxxxxx" required value="${req.query.number || ''}"/>
-      <button type="submit">GET CODE</button>
-    </form>
-    ${pairingCode ? `<div class="code">${pairingCode}</div><p style="font-size:12px;margin-top:10px;">WhatsApp > Linked Devices > Link with Phone Number<br>Is code ko 15 sec me dalo</p>` : ''}
-    ` : ''}
-  </div></body></html>
-  `);
+    // Agar number diya hai to code generate karo
+    if (phoneNumber && globalSock) {
+        try {
+            const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
+            if (cleanNumber.length < 10) {
+                lastPairingCode = 'ERROR: Number Galat Hai';
+            } else {
+                // V5 ka pairing method
+                await new Promise(r => setTimeout(r, 2000));
+                if (!globalSock.authState.creds.registered) {
+                    lastPairingCode = await globalSock.requestPairingCode(cleanNumber);
+                    console.log(`[RANA FURQAN MD V5] Pairing Code for ${cleanNumber}: ${lastPairingCode}`);
+                } else {
+                    lastPairingCode = 'ALREADY CONNECTED';
+                }
+            }
+        } catch (err) {
+            console.log('Pairing Error:', err.message);
+            lastPairingCode = 'ERROR: ' + err.message;
+        }
+    }
+
+    // HTML Response
+    res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>RANA FURQAN MD V5</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            *{margin:0;padding:0;box-sizing:border-box}
+            body{background:#000;color:#fff;font-family:Arial,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:15px}
+            .main{background:#111;border:2px solid #ff0000;border-radius:20px;padding:30px;width:100%;max-width:360px;text-align:center;box-shadow:0 0 30px rgba(255,0,0,0.5)}
+            h1{color:#ff0000;font-size:22px;margin-bottom:10px}
+            .status{padding:8px;border-radius:8px;margin:15px 0;font-size:13px;font-weight:bold}
+            .disconnected{background:#330000;color:#ff5555}
+            .connected{background:#003300;color:#55ff55}
+            input{width:100%;padding:14px;border-radius:12px;border:none;outline:none;text-align:center;font-size:17px;margin:10px 0;background:#222;color:#fff}
+            button{width:100%;padding:14px;border-radius:12px;border:none;background:#ff0000;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;margin-top:5px}
+            button:hover{background:#cc0000}
+            .code-box{margin-top:20px;background:#000;border:1px dashed #00ff00;border-radius:12px;padding:15px}
+            .code{font-size:36px;letter-spacing:5px;color:#00ff00;font-weight:bold}
+            .info{font-size:11px;color:#aaa;margin-top:10px;line-height:1.4}
+        </style>
+    </head>
+    <body>
+        <div class="main">
+            <h1>🔥 RANA FURQAN MD 🔥</h1>
+            <p style="font-size:12px;color:#ccc">VERSION 5 - FINAL</p>
+            
+            <div class="status ${connectionStatus === 'CONNECTED' ? 'connected' : 'disconnected'}">
+                STATUS: ${connectionStatus}
+            </div>
+
+            ${connectionStatus === 'CONNECTED' ? `
+                <h2 style="color:#00ff00">✅ BOT CONNECTED!</h2>
+                <p style="font-size:13px;margin-top:10px">Ab WhatsApp pe .ping likh ke check karo</p>
+            ` : `
+                <form method="GET" action="/">
+                    <input type="text" name="number" placeholder="923xxxxxxxxx" required value="${phoneNumber || ''}" />
+                    <button type="submit">GET PAIRING CODE</button>
+                </form>
+
+                ${lastPairingCode ? `
+                <div class="code-box">
+                    <div class="code">${lastPairingCode}</div>
+                    <div class="info">
+                        WhatsApp kholo > Settings > Linked Devices<br>
+                        > Link a Device > Link with phone number<br>
+                        Upar wala 8 digit code dalo (20 sec me)
+                    </div>
+                </div>
+                ` : `
+                <div class="info">Apna WhatsApp number 92 ke sath likho<br>Example: 923012345678</div>
+                `}
+            `}
+        </div>
+    </body>
+    </html>
+    `);
 });
 
+// Health check for Railway
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
+// ===== BOT START FUNCTION - FULL ERROR FREE =====
 async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
-  
-  const sock = makeWASocket({
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
-    },
-    logger: pino({ level: 'silent' }),
-    browser: Browsers.macOS('Desktop'),
-    printQRInTerminal: false,
-  });
-
-  global.sock = sock;
-  sock.ev.on('creds.update', saveCreds);
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update;
-    if (connection === 'open') {
-      isConnected = true;
-      pairingCode = null;
-      console.log('✅ RANA FURQAN MD CONNECTED!');
-    }
-    if (connection === 'close') {
-      isConnected = false;
-      const reason = lastDisconnect?.error?.output?.statusCode;
-      console.log('Connection closed, reason:', reason);
-      if (reason === DisconnectReason.loggedOut) {
-        console.log('Logged out, deleting auth');
-        if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
-        pairingCode = null;
-      }
-      // Auto reconnect after 3 sec
-      setTimeout(startBot, 3000);
-    }
-  });
-
-  // ===== BOT COMMANDS - Yahan se bot kaam karega =====
-  sock.ev.on('messages.upsert', async ({ messages }) => {
     try {
-      const msg = messages[0];
-      if (!msg.message || msg.key.fromMe) return;
-      
-      const from = msg.key.remoteJid;
-      const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+        const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
 
-      if (text.toLowerCase() === '.ping' || text.toLowerCase() === 'ping') {
-        await sock.sendMessage(from, { text: '🏓 Pong! RANA FURQAN MD Active Hai Bhai! 🔥' });
-      }
-      if (text.toLowerCase() === '.menu' || text.toLowerCase() === 'menu') {
-        await sock.sendMessage(from, { text: `*🔥 RANA FURQAN MD - MENU 🔥*\n\n.ping - Bot Check\n.menu - Ye Menu\n.owner - Owner Info\n\nBot Connected Successfully ✅` });
-      }
-      if (text.toLowerCase() === '.owner') {
-        await sock.sendMessage(from, { text: '*RANA FURQAN MD* Ka Owner - RANA FURQAN 👑' });
-      }
-    } catch (e) {
-      console.log('Message Error:', e.message);
+        globalSock = makeWASocket({
+            auth: state,
+            logger: pino({ level: 'silent' }),
+            browser: Browsers.macOS('Desktop'),
+            printQRInTerminal: false,
+            syncFullHistory: false,
+        });
+
+        globalSock.ev.on('creds.update', saveCreds);
+
+        globalSock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect } = update;
+
+            if (connection === 'open') {
+                connectionStatus = 'CONNECTED';
+                lastPairingCode = null;
+                console.log('✅ RANA FURQAN MD V5 - CONNECTED SUCCESSFULLY!');
+            }
+
+            if (connection === 'close') {
+                connectionStatus = 'DISCONNECTED';
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                console.log('Connection Closed, Code:', statusCode);
+
+                if (statusCode === DisconnectReason.loggedOut) {
+                    console.log('Logged Out - Deleting Auth');
+                    if (fs.existsSync(AUTH_FOLDER)) {
+                        fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+                    }
+                    lastPairingCode = null;
+                    setTimeout(startBot, 3000);
+                } else if (statusCode !== DisconnectReason.connectionClosed) {
+                    // Auto reconnect for all other errors
+                    console.log('Reconnecting in 3 sec...');
+                    setTimeout(startBot, 3000);
+                } else {
+                    setTimeout(startBot, 3000);
+                }
+            }
+        });
+
+        // ===== MESSAGE HANDLER - BOT COMMANDS =====
+        globalSock.ev.on('messages.upsert', async (m) => {
+            try {
+                const msg = m.messages[0];
+                if (!msg || !msg.message || msg.key.fromMe) return;
+
+                const from = msg.key.remoteJid;
+                const type = Object.keys(msg.message)[0];
+                const body = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || '';
+
+                // Commands
+                if (body.toLowerCase() === '.ping') {
+                    await globalSock.sendMessage(from, { text: '🏓 *PONG!*\n\n🔥 RANA FURQAN MD V5 Active Hai Bhai JAAN! ✅' });
+                }
+                if (body.toLowerCase() === '.menu') {
+                    await globalSock.sendMessage(from, { text: `*🔥 RANA FURQAN MD V5 MENU 🔥*\n\n.ping - Bot Active Check\n.menu - Ye Menu\n.owner - Owner\n\n*Bot Owner: RANA FURQAN* 👑` });
+                }
+                if (body.toLowerCase() === '.owner') {
+                    await globalSock.sendMessage(from, { text: '*👑 OWNER: RANA FURQAN MD*\n\nWhatsApp Bot V5 - No Error - Full Working!' });
+                }
+
+            } catch (err) {
+                console.log('Message Handler Error:', err.message);
+            }
+        });
+
+    } catch (err) {
+        console.log('StartBot Error:', err.message);
+        setTimeout(startBot, 5000);
     }
-  });
 }
 
-app.get('/health', (req, res) => res.send('OK'));
-
+// Start Server
 app.listen(PORT, () => {
-  console.log(`Server Started on ${PORT}`);
-  startBot();
+    console.log(`[RANA FURQAN MD V5] Server Running on Port ${PORT}`);
+    startBot();
 });
+// ========== END OF FULL FILE ==========
