@@ -2,6 +2,7 @@
 /**
  * Web server: serves the pairing website (public/) and a small JSON API.
  * Public endpoints expose only attempt status + the short-lived pairing code.
+ * 🌹 RANA FURQAN MD - Config se DP + Name ayega
  */
 const path = require('path');
 const express = require('express');
@@ -10,7 +11,7 @@ const { PairingError } = require('./sessionManager');
 function createServer({ config, manager, logger }) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1); // Railway sits behind a proxy
+  app.set('trust proxy', 1);
 
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -18,14 +19,14 @@ function createServer({ config, manager, logger }) {
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' https://i.ibb.co data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+      // 🌹 FIX: ab koi bhi image link (ibb, catbox, etc) allow hai
+      "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     );
     next();
   });
 
   app.use(express.json({ limit: '2kb' }));
 
-  // ---- very small in-memory rate limiter for starting pairings ----
   const hits = new Map();
   const limiter = (req, res, next) => {
     const now = Date.now();
@@ -46,19 +47,19 @@ function createServer({ config, manager, logger }) {
   }, 60000);
   gc.unref?.();
 
-  // ---- API ----
   app.get('/health', (req, res) => res.json({ ok: true, ...manager.stats() }));
 
+  // 🌹 YEHI SE PAIRING SITE KO DP + NAAM JATA HAI - CONFIG SE
   app.get('/api/info', (req, res) => {
     res.json({
-      botName: config.botName,
+      botName: config.botName, // 🌹 RANA FURQAN MD
       ownerName: config.ownerName,
       channelName: config.channel.name,
       channelLink: config.channel.link,
       groupName: config.group.name,
       groupLink: config.group.link,
       githubUrl: config.github.url,
-      image: config.botImage,
+      image: config.botImage, // 🌹 AAPKI DP - LAZMI
       codeTtlSeconds: Math.round(config.pairing.attemptTtlMs / 1000),
     });
   });
@@ -97,11 +98,10 @@ function createServer({ config, manager, logger }) {
     res.json({ ok: true });
   });
 
-  // ---- pairing website ----
   app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '5m', index: 'index.html' }));
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
-  app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  app.use((err, req, res, next) => {
     if (err && err.type === 'entity.parse.failed') {
       return res.status(400).json({ error: 'Invalid request body.' });
     }
