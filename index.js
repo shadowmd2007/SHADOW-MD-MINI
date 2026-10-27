@@ -1,74 +1,89 @@
-try {
-  const d = await import('dotenv');
-  (d.default ?? d).config();
-} catch {}
-
+try { const d = await import('dotenv'); (d.default ?? d).config(); } catch {}
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
 import pino from 'pino';
-import { default as makeWASocket, useMultiFileAuthState, delay, makeCacheableSignalKeyStore, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, delay, makeCacheableSignalKeyStore, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { config } from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
 const app = express();
 const PORT = process.env.PORT || config.port || 3000;
 
 let status = 'DISCONNECTED';
 let pairingData = { code: null, expiry: null, id: null };
 let sock = null;
-
-// 🌹 NEW - For public/index.html API
 const apiAttempts = new Map();
 
 app.use(express.json());
 app.use(express.static(join(__dirname, 'public')));
 
-// 🌹 API ROUTES - Jo aapki DP wali site dhoondti hai
-app.get('/api/info', (req,res)=>{
-  res.json({
-    botName: config.botName,
-    ownerName: config.ownerName || 'RANA FURQAN',
-    image: config.botImage,
-    botImage: config.botImage,
-    ok: true
-  });
-});
+// 🌹 Clean old auth before new pair - YEHI FIX THA!
+function cleanAuth(dir){
+  try{ if(fs.existsSync(dir)) fs.rmSync(dir, {recursive:true, force:true}); }catch{}
+  fs.mkdirSync(dir, {recursive:true});
+}
 
+app.get('/api/info', (req,res)=>{
+  res.json({ botName: config.botName, ownerName: 'RANA FURQAN', image: config.botImage, botImage: config.botImage });
+});
 app.get('/health', (req,res)=> res.json({ok:true, status}));
 
+// 🌹 REAL PAIR - AB 100% LINK HOGA
 app.post('/api/pair', async (req,res)=>{
   let num = (req.body?.number || '').toString().replace(/[^0-9]/g,'');
   if(!num) return res.status(400).json({error:'Number do!'});
   try{
-    const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
+    // 🌹 IMPORTANT: Har pair ke liye fresh folder
+    const pairDir = join(__dirname, 'auth', `pair-${Date.now()}`);
+    cleanAuth(pairDir);
+    
+    const { state, saveCreds } = await useMultiFileAuthState(pairDir);
     const { version } = await fetchLatestBaileysVersion();
     const tempSock = makeWASocket({
       version,
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino().child({level:'silent'})) },
       printQRInTerminal: false,
       logger: pino({level:'silent'}),
-      browser: ['Safari','Mac OS','15.0']
+      browser: ['Chrome','Windows','10'],
     });
     tempSock.ev.on('creds.update', saveCreds);
-    if(!tempSock.authState.creds.registered){
-      await delay(1500);
-      let code = await tempSock.requestPairingCode(num);
-      const id = Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      pairingData = { code, expiry: Date.now()+60000, id };
-      apiAttempts.set(id, { code, number: num });
-      console.log(`🌹 RANA FURQAN PAIR ${num} => ${code}`);
-      setTimeout(()=>{ try{tempSock.end()}catch{}; pairingData.code=null; }, 60000);
-      return res.json({ id, code, status:'ok' });
-    }else{
-      return res.status(400).json({error:'Already registered! Delete sessions folder'});
-    }
+    
+    await delay(2000);
+    let code = await tempSock.requestPairingCode(num);
+    // 🌹 Code ko XXXX-XXXX format me dikhao
+    let prettyCode = code.includes('-') ? code : code.slice(0,4)+'-'+code.slice(4);
+    const id = Date.now().toString(36);
+    
+    pairingData = { code: prettyCode, raw: code, expiry: Date.now()+120000, id, dir: pairDir, sock: tempSock };
+    apiAttempts.set(id, { code: prettyCode, raw: code, number: num, dir: pairDir, sock: tempSock });
+    
+    console.log(`🌹 RANA FURQAN PAIR ${num} => ${prettyCode} (raw:${code})`);
+    
+    // 🌹 Jab WhatsApp pe code daloge to ye listener creds ko main auth me copy karega
+    tempSock.ev.on('connection.update', async (u)=>{
+      if(u.connection === 'open'){
+        console.log('🌹 Pairing Success - Copying creds to main auth');
+        try{
+          // pairDir se main authDir me copy
+          const mainDir = config.authDir;
+          cleanAuth(mainDir);
+          for(let f of fs.readdirSync(pairDir)){
+            fs.copyFileSync(join(pairDir,f), join(mainDir,f));
+          }
+          status = 'CONNECTED';
+        }catch(e){ console.log('copy error', e.message) }
+      }
+    });
+    
+    setTimeout(()=>{ try{tempSock.end()}catch{} }, 120000);
+    
+    return res.json({ id, code: prettyCode, raw: code });
   }catch(e){
     console.error('pair error', e.message);
-    return res.status(500).json({error: 'Pair fail: '+e.message});
+    return res.status(500).json({error: e.message});
   }
 });
 
@@ -78,7 +93,7 @@ app.get('/api/pair/:id', (req,res)=>{
   return res.json({code: a.code});
 });
 
-// 🌹 Purana / wala page bhi rahega
+// 🌹 Purana page - Logo same rahega
 app.get('/', (req, res) => {
     res.send(`
 <!DOCTYPE html>
@@ -91,7 +106,7 @@ body{background:#000;color:#fff;font-family:sans-serif;display:flex;justify-cont
 h1{color:red;margin:5px 0;font-size:22px}
 input{width:100%;padding:14px;border-radius:12px;border:none;margin:12px 0;text-align:center;font-size:17px;background:#222;color:#fff}
 button{width:100%;padding:14px;border-radius:12px;border:none;background:red;color:#fff;font-weight:bold;font-size:16px;cursor:pointer}
-.code{font-size:30px;letter-spacing:3px;color:#00ff00;background:#000;padding:12px;border-radius:12px;margin-top:15px;border:1px dashed #0f0}
+.code{font-size:28px;letter-spacing:3px;color:#00ff00;background:#000;padding:12px;border-radius:12px;margin-top:15px;border:1px dashed #0f0}
 </style></head>
 <body>
 <div class="card">
@@ -103,49 +118,32 @@ ${status === 'CONNECTED' ? '<h2 style="color:#0f0">✅ BOT CONNECTED 🌹</h2>' 
 <input name="number" value="${config.ownerNumber}" placeholder="92300XXXXXXX" required />
 <button type="submit">GET PAIR CODE</button>
 </form>
-${pairingData.code ? `<div class="code">${pairingData.code}</div><div style="color:yellow;font-size:12px;margin-top:8px">Valid 60s - ID: ${pairingData.id}</div>` : ''}
+${pairingData.code ? `<div class="code">${pairingData.code}</div><div style="color:yellow;font-size:12px;margin-top:8px">Valid 120s</div>` : ''}
 `}
-<p style="margin-top:15px"><a href="/public/index.html" style="color:red">New Stylish Page</a></p>
 </div>
 </body>
 </html>
 `);
 });
 
-app.get('/getcode', async (req, res) => {
-    let num = (req.query.number || '').replace(/[^0-9]/g, '');
-    if(!num) return res.redirect('/');
-    try {
-        const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
-        const { version } = await fetchLatestBaileysVersion();
-        const tempSock = makeWASocket({
-            version,
-            auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino().child({level:'silent'})) },
-            printQRInTerminal: false,
-            logger: pino({level:'silent'}),
-            browser: ['Safari', 'Mac OS', '15.0']
-        });
-        tempSock.ev.on('creds.update', saveCreds);
-        if(!tempSock.authState.creds.registered){
-            await delay(2000);
-            let code = await tempSock.requestPairingCode(num);
-            const id = Date.now().toString(36);
-            pairingData = { code, expiry: Date.now()+60000, id };
-            apiAttempts.set(id, { code, number: num });
-            status = 'PAIRING';
-            setTimeout(()=>{ pairingData.code = null }, 60000);
-        }
-    } catch(e){ console.log(e) }
-    res.redirect('/');
+app.get('/getcode', async (req,res)=>{
+  let num = (req.query.number || '').replace(/[^0-9]/g,'');
+  if(!num) return res.redirect('/');
+  res.redirect(`/public/index.html?number=${num}`);
 });
 
 async function startBot(){
+    if(!fs.existsSync(config.authDir) || fs.readdirSync(config.authDir).length===0){
+      status = 'DISCONNECTED';
+      console.log('🌹 No creds yet - waiting for pairing');
+      return;
+    }
     const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
     sock = makeWASocket({
         auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino().child({level:'silent'})) },
         printQRInTerminal: false,
         logger: pino({level:'silent'}),
-        browser: ['Safari', 'Mac OS', '15.0'],
+        browser: ['Chrome','Windows','10'],
         markOnlineOnConnect: true
     });
     sock.ev.on('creds.update', saveCreds);
@@ -157,14 +155,14 @@ async function startBot(){
             try{
                 await sock.sendMessage(config.ownerNumber + '@s.whatsapp.net', {
                     image: { url: config.botImage },
-                    caption: `🌹 *${config.botName} CONNECTED!* 🌹\n\n✅ Bot Online Hai Bhai JAAN!`
+                    caption: `🌹 *${config.botName} CONNECTED!* 🌹\n\n✅ Bot Online Hai Bhai JAAN!\n📱 Number: ${config.ownerNumber}`
                 });
             }catch(e){}
         }
         if(connection === 'close'){
             let reason = lastDisconnect?.error?.output?.statusCode;
             if(reason !== DisconnectReason.loggedOut){
-                startBot();
+                setTimeout(startBot, 3000);
             } else {
                 status = 'DISCONNECTED';
             }
@@ -174,7 +172,7 @@ async function startBot(){
     let plugins = new Map();
     if(fs.existsSync(pluginsPath)){
         const files = fs.readdirSync(pluginsPath).filter(f=>f.endsWith('.js'));
-        console.log(`🌹 Found ${files.length} Plugins - RANA FURQAN MD`);
+        console.log(`🌹 Found ${files.length} Plugins`);
         for(let file of files){
             try{
                 const plugin = await import(`file://${join(pluginsPath, file)}?update=${Date.now()}`);
@@ -202,4 +200,4 @@ async function startBot(){
 }
 
 startBot();
-app.listen(PORT, () => console.log(`🌹 ${config.botName} Running on ${PORT} - Safari Mode - API FIXED`));
+app.listen(PORT, () => console.log(`🌹 ${config.botName} Running on ${PORT} - FIXED PAIRING`));
