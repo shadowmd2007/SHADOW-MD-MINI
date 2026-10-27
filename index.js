@@ -14,192 +14,136 @@ const PORT = process.env.PORT || 3000;
 let status = 'DISCONNECTED';
 let pairCode = null;
 let pairExpiry = 0;
+let currentSock = null;
 
-app.use(express.json());
-
-// ✅ MAIN PAGE - PAIR CODE UI
 app.get('/', (req, res) => {
   if(pairCode && Date.now() > pairExpiry) pairCode = null;
-  
-  res.send(`<!DOCTYPE html>
-<html>
-<head>
-<title>🌹 ${config.botName} 🌹</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-body{background:#000;color:#fff;font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
-.card{background:#111;border:2px solid red;border-radius:20px;padding:25px;width:360px;text-align:center;box-shadow:0 0 20px red}
-.dp{width:100px;height:100px;border-radius:50%;border:3px solid red;margin:auto;display:block}
-h1{color:red;font-size:20px}
-input{width:90%;padding:12px;border-radius:10px;border:none;background:#222;color:#fff;margin:10px 0;text-align:center}
-button{width:95%;padding:12px;border-radius:10px;border:none;background:red;color:#fff;font-weight:bold;cursor:pointer;margin:5px 0}
-.code{font-size:32px;letter-spacing:4px;color:#0f0;background:#000;padding:12px;border-radius:10px;border:2px dashed #0f0;margin-top:15px}
-.status{padding:8px;border-radius:8px;margin:10px 0}
-.connected{background:#003300;color:#0f0;border:1px solid #0f0}
-.disconnected{background:#330000;color:#ff5555;border:1px solid red}
-</style>
-</head>
-<body>
-<div class="card">
-<img class="dp" src="${config.botImage}"/>
-<h1>🌹 ${config.botName} 🌹</h1>
-<div class="status ${status==='CONNECTED'?'connected':'disconnected'}">STATUS: ${status}</div>
-
-${status==='CONNECTED' ? `
-<h2 style="color:#0f0">✅ ONLINE WORKING ✅</h2>
-<p>WhatsApp pe <b>.menu</b> likho</p>
-<a href="/logout"><button style="background:#333">LOGOUT / NEW PAIR</button></a>
-` : `
-<form action="/getcode" method="GET">
-<input name="number" placeholder="92300XXXXXXX" value="${config.ownerNumber}" required/>
-<button type="submit">GET PAIR CODE</button>
-</form>
-${pairCode ? `
-<div class="code">${pairCode}</div>
-<p style="color:yellow;font-size:12px">WhatsApp > Linked Devices > Link with phone number > Code paste karo</p>
-<p style="color:#aaa;font-size:11px">Code 2 minute me expire hoga</p>
-` : `<p style="color:#888;font-size:12px">Number daal ke GET PAIR CODE dabao</p>`}
-<a href="/logout"><button style="background:#222;font-size:12px">CLEAR SESSION</button></a>
-`}
-
-</div>
-</body>
-</html>`);
+  res.send(`<!DOCTYPE html><html><head><title>🌹 ${config.botName} 🌹</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#000;color:#fff;font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}.card{background:#111;border:2px solid red;border-radius:20px;padding:20px;width:360px;text-align:center}.dp{width:100px;height:100px;border-radius:50%;border:3px solid red;margin:auto;display:block}input{width:90%;padding:12px;border-radius:10px;background:#222;color:#fff;border:none;margin:10px 0;text-align:center}button{width:95%;padding:12px;border-radius:10px;background:red;color:#fff;font-weight:bold;border:none;cursor:pointer}.code{font-size:32px;color:#0f0;background:#000;padding:12px;border:2px dashed #0f0;border-radius:10px;margin-top:10px;letter-spacing:3px}</style></head><body><div class="card"><img class="dp" src="${config.botImage}"/><h1>🌹 ${config.botName} 🌹</h1><p>STATUS: <b style="color:${status==='CONNECTED'?'#0f0':'red'}">${status}</b></p>${status==='CONNECTED'?`<h2 style="color:#0f0">✅ CONNECTED ✅</h2><p>.menu likho WhatsApp pe</p><a href="/logout"><button>LOGOUT</button></a>`: `<form action="/getcode"><input name="number" value="${config.ownerNumber}" required/><button>GET PAIR CODE</button></form>${pairCode?`<div class="code">${pairCode}</div><p style="color:yellow;font-size:11px">WhatsApp > Linked Devices > Link with phone number<br>Code 30 sec me dalo!</p>`:''}<a href="/logout"><button style="background:#333;margin-top:10px">CLEAR SESSION - NEW CODE</button></a>`}</div></body></html>`);
 });
 
-app.get('/logout', (req,res)=>{
+app.get('/logout', async (req,res)=>{
   try{
+    if(currentSock){ try{ currentSock.end(); }catch{} }
     if(fs.existsSync(config.authDir)) fs.rmSync(config.authDir,{recursive:true,force:true});
-    status='DISCONNECTED';
-    pairCode=null;
-    console.log('🌹 Session cleared');
+    status='DISCONNECTED'; pairCode=null; currentSock=null;
+    console.log('🌹 Session Fully Cleared');
   }catch{}
   res.redirect('/');
 });
 
 async function startPairing(num){
   try{
-    if(!fs.existsSync(config.authDir)) fs.mkdirSync(config.authDir,{recursive:true});
+    // ✅ FIX 1: PURANA SESSION FULL DELETE - Yahi masla tha!
+    if(fs.existsSync(config.authDir)){
+      fs.rmSync(config.authDir,{recursive:true,force:true});
+      console.log('🌹 Old auth deleted');
+    }
+    fs.mkdirSync(config.authDir,{recursive:true});
+    await delay(1000);
+
     const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
     const { version } = await fetchLatestBaileysVersion();
-    console.log(`🌹 Pairing ${num} - Safari`);
+    
+    console.log(`🌹 Pairing ${num} - Chrome Stable`);
     
     const sock = makeWASocket({
       version,
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({level:'silent'})) },
       printQRInTerminal: false,
       logger: pino({level:'silent'}),
-      browser: ['Safari', 'iPhone', '16.0'],
+      browser: ['Chrome', 'Windows', '10.0'], // ✅ FIX 2: Chrome se pairing 100% hota hai, Safari se error ata hai
     });
     
+    currentSock = sock;
     sock.ev.on('creds.update', saveCreds);
-    await delay(3000);
+    
+    // ✅ FIX 3: Jaldi code mango, zyada delay nahi
+    await delay(2000);
     
     if(!sock.authState.creds.registered){
       let code = await sock.requestPairingCode(num);
-      code = code.includes('-') ? code : code.slice(0,4)+'-'+code.slice(4);
+      code = code?.match(/.{1,4}/g)?.join('-') || code;
       pairCode = code;
-      pairExpiry = Date.now()+120000;
-      console.log(`🌹 CODE: ${code}`);
+      pairExpiry = Date.now()+60000; // 60 sec
+      console.log(`🌹 NEW CODE: ${code} - 60 sec me use karo`);
     }
-    
+
     sock.ev.on('connection.update', async (u)=>{
       if(u.connection==='open'){
-        console.log('🌹 PAIR SUCCESS 🌹');
+        console.log('🌹 PAIR SUCCESS - CONNECTED 🌹');
         status='CONNECTED';
         pairCode=null;
         setTimeout(()=> startBot(),2000);
       }
-      if(u.connection==='close'){
-        const c=u.lastDisconnect?.error?.output?.statusCode;
-        console.log(`Pair closed: ${c}`);
-      }
     });
-  }catch(e){ console.log('Pair error:', e.message); }
+
+  }catch(e){
+    console.log('Pair error:', e.message);
+    pairCode = `ERROR: ${e.message}`;
+  }
 }
 
 app.get('/getcode', async (req,res)=>{
   let num=(req.query.number||'').replace(/[^0-9]/g,'').trim();
   if(!num) return res.redirect('/');
-  console.log(`Getting code for ${num}`);
   startPairing(num);
-  setTimeout(()=> res.redirect('/'),3500);
+  setTimeout(()=> res.redirect('/'),3000);
 });
 
 async function startBot(){
   try{
     if(!fs.existsSync(config.authDir) || fs.readdirSync(config.authDir).length===0){
       status='DISCONNECTED';
-      console.log('No auth - need pairing');
       return;
     }
-    console.log('Starting Bot...');
     const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
     const { version } = await fetchLatestBaileysVersion();
-    
     const sock = makeWASocket({
       version,
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({level:'silent'})) },
-      printQRInTerminal: false,
       logger: pino({level:'silent'}),
-      browser: ['Safari', 'iPhone', '16.0'],
+      browser: ['Safari', 'iPhone', '16.0'], // Bot chalne ke baad Safari dikhega
       markOnlineOnConnect: true,
     });
-    
     sock.ev.on('creds.update', saveCreds);
-    
-    sock.ev.on('connection.update', async (u)=>{
-      if(u.connection==='open'){
-        status='CONNECTED';
-        console.log('🌹 RANA FURQAN MD - ONLINE ✅ SAFARI 🌹');
-      }
+    sock.ev.on('connection.update', (u)=>{
+      if(u.connection==='open'){ status='CONNECTED'; console.log('🌹 ONLINE SAFARI 🌹'); }
       if(u.connection==='close'){
         const r=u.lastDisconnect?.error?.output?.statusCode;
-        console.log('Bot closed:', r, u.lastDisconnect?.error?.message);
-        status='DISCONNECTED';
-        if(r!==DisconnectReason.loggedOut){
-          setTimeout(startBot,3000);
-        }
+        if(r!==DisconnectReason.loggedOut) setTimeout(startBot,3000);
+        else status='DISCONNECTED';
       }
     });
 
-    // ✅ AUTO LOAD COMMANDS + PLUGINS
     let plugins = new Map();
     for(let folder of ['commands','plugins']){
       const pPath = join(__dirname, folder);
       if(fs.existsSync(pPath)){
         const files = fs.readdirSync(pPath).filter(x=>x.endsWith('.js'));
-        console.log(`📁 ${folder}: ${files.length} files`);
         for(let f of files){
           try{
-            const mod = await import(`file://${join(pPath,f)}?update=${Date.now()}`);
-            const plugin = mod.default || mod;
-            if(plugin.command){
-              plugins.set(f, plugin);
-            }
-          }catch(e){ console.log(`❌ ${f}: ${e.message}`); }
+            const mod = await import(`file://${join(pPath,f)}?t=${Date.now()}`);
+            const p = mod.default || mod;
+            if(p.command) plugins.set(f, p);
+          }catch{}
         }
       }
     }
-    console.log(`🌹 TOTAL: ${plugins.size} files loaded`);
+    console.log(`🌹 TOTAL: ${plugins.size} files`);
 
     sock.ev.on('messages.upsert', async (m)=>{
-      try{
-        const msg=m.messages[0];
-        if(!msg.message) return;
-        const body = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || '';
-        if(!body.startsWith(config.prefix)) return;
-        const args=body.slice(config.prefix.length).trim().split(/ +/);
-        const cmd=args.shift().toLowerCase();
-        for(let p of plugins.values()){
-          if(p.command?.includes(cmd)){
-            await p(sock, msg, args, {config});
-          }
-        }
-      }catch{}
+      const msg=m.messages[0];
+      if(!msg?.message) return;
+      const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+      if(!body.startsWith(config.prefix)) return;
+      const args=body.slice(config.prefix.length).trim().split(/ +/);
+      const cmd=args.shift().toLowerCase();
+      for(let p of plugins.values()){
+        if(p.command?.includes(cmd)) await p(sock, msg, args, {config});
+      }
     });
-  }catch(e){ console.log('Bot start error:', e.message); status='DISCONNECTED'; }
+  }catch(e){ console.log(e.message); }
 }
 
 startBot();
-app.listen(PORT, ()=> console.log(`🌹 ONLINE FILE Running on ${PORT} - ${status}`));
+app.listen(PORT, ()=> console.log(`Running ${PORT}`));
