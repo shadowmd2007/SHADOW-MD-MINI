@@ -19,7 +19,6 @@ function createServer({ config, manager, logger }) {
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader(
       'Content-Security-Policy',
-      // 🌹 FIX: ab koi bhi image link (ibb, catbox, etc) allow hai
       "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     );
     next();
@@ -49,17 +48,16 @@ function createServer({ config, manager, logger }) {
 
   app.get('/health', (req, res) => res.json({ ok: true, ...manager.stats() }));
 
-  // 🌹 YEHI SE PAIRING SITE KO DP + NAAM JATA HAI - CONFIG SE
   app.get('/api/info', (req, res) => {
     res.json({
-      botName: config.botName, // 🌹 RANA FURQAN MD
+      botName: config.botName,
       ownerName: config.ownerName,
       channelName: config.channel.name,
       channelLink: config.channel.link,
       groupName: config.group.name,
       groupLink: config.group.link,
       githubUrl: config.github.url,
-      image: config.botImage, // 🌹 AAPKI DP - LAZMI
+      image: config.botImage,
       codeTtlSeconds: Math.round(config.pairing.attemptTtlMs / 1000),
     });
   });
@@ -96,6 +94,32 @@ function createServer({ config, manager, logger }) {
       return res.status(404).json({ error: 'Unknown pairing attempt.' });
     }
     res.json({ ok: true });
+  });
+
+  // 🌹 FIX: /pair?number= WALA RASTA BHI KHOL DIYA - AB ERROR NAHI AYEGA
+  app.get('/pair', limiter, async (req, res) => {
+    try {
+      const number = (req.query.number || '').toString();
+      const attempt = await manager.startPairing(number);
+      // 2 sec me code ready hota hai, poll karke de do
+      let view = manager.getPublic(attempt.id);
+      let tries = 0;
+      while(tries < 15 && (!view || !view.code)){
+        await new Promise(r=>setTimeout(r,1000));
+        view = manager.getPublic(attempt.id);
+        tries++;
+      }
+      if(view && view.code){
+        return res.json({ code: view.code, id: attempt.id });
+      }
+      return res.json({ id: attempt.id, ...view });
+    } catch (e) {
+      if (e instanceof PairingError) {
+        return res.status(e.httpStatus).json({ error: e.message });
+      }
+      logger.error({ err: e.message }, 'pairing start failed /pair');
+      res.status(500).json({ error: 'Unexpected server error. Please try again.' });
+    }
   });
 
   app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '5m', index: 'index.html' }));
