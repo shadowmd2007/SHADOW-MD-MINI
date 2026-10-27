@@ -1,9 +1,4 @@
 'use strict';
-/**
- * Web server: serves the pairing website (public/) and a small JSON API.
- * Public endpoints expose only attempt status + the short-lived pairing code.
- * 🌹 RANA FURQAN MD - Config se DP + Name ayega
- */
 const path = require('path');
 const express = require('express');
 const { PairingError } = require('./sessionManager');
@@ -17,10 +12,7 @@ function createServer({ config, manager, logger }) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader(
-      'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
-    );
+    res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     next();
   });
 
@@ -67,9 +59,7 @@ function createServer({ config, manager, logger }) {
       const attempt = await manager.startPairing(req.body && req.body.number);
       res.status(201).json({ id: attempt.id, ...manager.getPublic(attempt.id) });
     } catch (e) {
-      if (e instanceof PairingError) {
-        return res.status(e.httpStatus).json({ error: e.message });
-      }
+      if (e instanceof PairingError) return res.status(e.httpStatus).json({ error: e.message });
       logger.error({ err: e.message }, 'pairing start failed');
       res.status(500).json({ error: 'Unexpected server error. Please try again.' });
     }
@@ -79,29 +69,21 @@ function createServer({ config, manager, logger }) {
 
   app.get('/api/pair/:id', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    if (!validId(req.params.id)) {
-      return res.status(404).json({ error: 'Unknown pairing attempt.' });
-    }
+    if (!validId(req.params.id)) return res.status(404).json({ error: 'Unknown pairing attempt.' });
     const view = manager.getPublic(req.params.id);
-    if (!view) {
-      return res.status(404).json({ error: 'Unknown or expired pairing attempt.' });
-    }
+    if (!view) return res.status(404).json({ error: 'Unknown or expired pairing attempt.' });
     res.json(view);
   });
 
   app.delete('/api/pair/:id', (req, res) => {
-    if (!validId(req.params.id) || !manager.cancel(req.params.id)) {
-      return res.status(404).json({ error: 'Unknown pairing attempt.' });
-    }
+    if (!validId(req.params.id) || !manager.cancel(req.params.id)) return res.status(404).json({ error: 'Unknown pairing attempt.' });
     res.json({ ok: true });
   });
 
-  // 🌹 FIX: /pair?number= WALA RASTA BHI KHOL DIYA - AB ERROR NAHI AYEGA
   app.get('/pair', limiter, async (req, res) => {
     try {
       const number = (req.query.number || '').toString();
       const attempt = await manager.startPairing(number);
-      // 2 sec me code ready hota hai, poll karke de do
       let view = manager.getPublic(attempt.id);
       let tries = 0;
       while(tries < 15 && (!view || !view.code)){
@@ -109,31 +91,22 @@ function createServer({ config, manager, logger }) {
         view = manager.getPublic(attempt.id);
         tries++;
       }
-      if(view && view.code){
-        return res.json({ code: view.code, id: attempt.id });
-      }
+      if(view && view.code) return res.json({ code: view.code, id: attempt.id });
       return res.json({ id: attempt.id, ...view });
     } catch (e) {
-      if (e instanceof PairingError) {
-        return res.status(e.httpStatus).json({ error: e.message });
-      }
+      if (e instanceof PairingError) return res.status(e.httpStatus).json({ error: e.message });
       logger.error({ err: e.message }, 'pairing start failed /pair');
       res.status(500).json({ error: 'Unexpected server error. Please try again.' });
     }
   });
 
   app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '5m', index: 'index.html' }));
-
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
   app.use((err, req, res, next) => {
-    if (err && err.type === 'entity.parse.failed') {
-      return res.status(400).json({ error: 'Invalid request body.' });
-    }
+    if (err && err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request body.' });
     logger.error({ err: err && err.message }, 'express error');
     res.status(500).json({ error: 'Unexpected server error.' });
   });
-
   return app;
 }
-
 module.exports = { createServer };
