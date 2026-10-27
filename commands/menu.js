@@ -1,61 +1,100 @@
 import fs from 'fs';
+import path from 'path';
 
 export const command = {
   name: "menu",
-  aliases: ["allmenu", "help", "list"],
+  aliases: ["help"],
   category: "GENERAL",
-  description: "All commands menu with DP",
+  description: "Full Menu - Auto Shows All Commands",
   run: async ({ sock, jid, m, prefix }) => {
     
-    // Config se image lega, nahi mile to BOT_DP
     let MENU_IMG = process.env.BOT_DP || 'https://files.catbox.moe/y04tbj.jpg';
-    let botName = process.env.BOT_NAME || 'RANA FURQAN MD';
-    
+    let botName = 'RANA FURQAN MD';
     try {
       if (fs.existsSync('./config.js')) {
-        const cfg = await import('../config.js?t=' + Date.now());
+        const cfg = await import(`file://${process.cwd()}/config.js?t=${Date.now()}`);
         const c = cfg.default || cfg;
-        MENU_IMG = c.BOT_IMAGE || c.MENU_IMAGE || c.ALIVE_IMG || c.IMAGE || MENU_IMG;
+        MENU_IMG = c.BOT_IMAGE || c.MENU_IMAGE || c.ALIVE_IMG || c.IMAGE || c.BOT_DP || MENU_IMG;
+        botName = c.BOT_NAME || botName;
       }
     } catch {}
 
     let version = '5.0.0';
-    let mode = process.env.MODE || 'PUBLIC';
+    let mode = 'PUBLIC';
     try {
       if (fs.existsSync('./package.json')) {
         const pkg = JSON.parse(fs.readFileSync('./package.json'));
         version = pkg.version || '5.0.0';
       }
+      mode = process.env.MODE || mode;
     } catch {}
 
+    // AUTO LOAD ALL COMMANDS FOR .menu ONLY
+    let categoryText = '';
+    try {
+      const cmdPath = path.join(process.cwd(), 'commands');
+      const files = fs.readdirSync(cmdPath).filter(f => f.endsWith('.js'));
+      const categories = {};
+      
+      for (const file of files) {
+        const cmdName = file.replace('.js','').toLowerCase();
+        if(cmdName === 'menu') continue;
+        let cat = 'OTHER';
+        if(['play','video','song','fb','tiktok','insta','ytmp3','ytmp4'].some(x=>cmdName.includes(x))) cat = 'DOWNLOADER';
+        else if(['gpt','ai','gemini','bot','chat'].some(x=>cmdName.includes(x))) cat = 'AI';
+        else if(['group','promote','demote','kick','add','tag'].some(x=>cmdName.includes(x))) cat = 'GROUP';
+        else if(['alive','ping','owner','info','menu'].some(x=>cmdName.includes(x))) cat = 'GENERAL';
+        else if(['sticker','stiker','s'].some(x=>cmdName.includes(x))) cat = 'CONVERTER';
+        
+        if(!categories[cat]) categories[cat] = [];
+        categories[cat].push(cmdName);
+      }
+
+      for (const [cat, cmds] of Object.entries(categories)) {
+        categoryText += `\n╭── ${cat} ──\n`;
+        for (const c of cmds) {
+          categoryText += `│ ◦ ${prefix}${c}\n`;
+        }
+        categoryText += `╰────────────\n`;
+      }
+    } catch (e) {
+      categoryText = `│ ◦ ${prefix}ping\n│ ◦ ${prefix}alive\n│ ◦ ${prefix}owner\n`;
+    }
+
     const totalCommands = global.commands ? global.commands.size : 109;
-    const uptimeSec = process.uptime();
-    const days = Math.floor(uptimeSec / 86400);
-    const hours = Math.floor((uptimeSec % 86400) / 3600);
-    const mins = Math.floor((uptimeSec % 3600) / 60);
-    const uptime = `${days}D ${hours}H ${mins}M`;
 
-    const menuText = `
-🌹 ${botName} 🌹
-💖 RANA KI JAN 💖
+    const finalMenu = `┏━━━━━━━━━━━━━━┓
+┃ 🌹 RANA FURQAN MD 🌹 ┃
+┗━━━━━━━━━━━━━━┛
 
-┌─── BOT INFO ───┐
-│ VERSION : ${version}
-│ MODE : ${mode.toUpperCase()}
-│ PREFIX : ${prefix}
-│ COMMANDS : ${totalCommands}
-│ UPTIME : ${uptime}
-│ OWNER : RANA KI JAAN
-└─────────────────┘
+   ❄️🌹❄️
+   💖 RANA KI JAN 💖
+   ❄️🌹❄️
 
-Type ${prefix}allmenu for full list
-POWERED BY MERI JAAN 🌹
+┏━━━━ BOT INFO ━━━━┓
+┃ VERSION : ${version}
+┃ MODE : ${mode}
+┃ PREFIX : ${prefix}
+┃ COMMANDS : ${totalCommands}
+┃ OWNER : RANA KI JAAN
+┗━━━━━━━━━━━━━━┛
+
+┏━━━━ ALL COMMANDS ━━━━┓
+${categoryText}
+┗━━━━━━━━━━━━━━┛
+
+┏━━━━ HOW TO USE ━━━━┓
+┃ For Song: ${prefix}play Pasoori
+┃ For Video: ${prefix}video Pasoori
+┗━━━━━━━━━━━━━━┛
+
+🌹 POWERED BY MERI JAAN 🌹
 `;
 
     try {
-      await sock.sendMessage(jid, { image: { url: MENU_IMG }, caption: menuText }, { quoted: m });
-    } catch (e) {
-      await sock.sendMessage(jid, { text: menuText }, { quoted: m });
+      await sock.sendMessage(jid, { image: { url: MENU_IMG }, caption: finalMenu }, { quoted: m });
+    } catch {
+      await sock.sendMessage(jid, { text: finalMenu }, { quoted: m });
     }
   }
 };
