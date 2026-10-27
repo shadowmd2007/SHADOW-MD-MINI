@@ -17,8 +17,9 @@ export const config = {
   groupName: "RANA FURQAN MD Group",
   groupLink: "https://chat.whatsapp.com/FGW9EITclIg2obBhZkkVTn",
   githubRepository: "https://whatsapp.com/channel/0029VbCiT0g8vd1P3dJZqm2J",
-  menuImage: "https://files.catbox.moe/y04tbj.jpg",
-  botImage: "https://files.catbox.moe/y04tbj.jpg",
+  // 🌹 FIXED DP - Ab yahi ayegi Menu pe + Pair Site pe
+  menuImage: "https://i.ibb.co/BHfCmfbw/jawadmd.jpg",
+  botImage: "https://i.ibb.co/BHfCmfbw/jawadmd.jpg",
   prefix: ".",
   mode: "public",
   version: "5.0.0",
