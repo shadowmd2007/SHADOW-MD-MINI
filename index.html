@@ -3,38 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SHADOW MD</title>
+<title>RANA FURQAN MD</title>
 <style>
   :root { --bg:#f4f5f7; --card:#fff; --text:#16181d; --muted:#6b7280; --accent:#128c7e; --border:#e2e5ea; }
   @media (prefers-color-scheme: dark) { :root { --bg:#0e1116; --card:#171b22; --text:#eef0f4; --muted:#9aa3b2; --border:#2a303a; } }
     * { box-sizing:border-box; }
   body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:16px; }
-  .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-  h1 { margin:0 0 4px; font-size:22px; }
-  p { color:var(--muted); margin:0 0 18px; font-size:14px; line-height:1.4; }
-  input,button { width:100%; padding:12px 14px; font-size:16px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text); }
-  input:focus { outline:2px solid var(--accent); border-color:var(--accent); }
-  button { margin-top:10px; background:var(--accent); color:#fff; border:0; font-weight:600; cursor:pointer; transition:0.2s; }
+  .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; box-shadow: 0 15px 40px rgba(0,0,0,0.1); text-align:center; }
+  h1 { margin:12px 0 4px; font-size:24px; font-weight:900; }
+  p { color:var(--muted); margin:0 0 18px; font-size:14px; line-height:1.5; }
+  input,button { width:100%; padding:14px 14px; font-size:16px; border-radius:12px; border:1px solid var(--border); background:var(--bg); color:var(--text); }
+  input:focus { outline:2px solid var(--accent); border-color:var(--accent); text-align:center; }
+  button { margin-top:12px; background:var(--accent); color:#fff; border:0; font-weight:700; cursor:pointer; transition:0.2s; }
   button:active { transform: scale(0.98); }
   button:disabled { opacity:.6; cursor:not-allowed; }
   #out { margin-top:16px; text-align:center; font-size:32px; letter-spacing:4px; font-weight:800; word-break:break-all; color:var(--accent); min-height:40px; }
   #msg { margin-top:8px; font-size:13px; color:var(--muted); text-align:center; min-height:20px; white-space:pre-wrap; }
   .success { color: #16a34a !important; font-weight:600; }
   .error { color: #dc2626 !important; }
+  img#botImg { width:120px; height:120px; border-radius:50%; border:4px solid var(--accent); object-fit:cover; box-shadow:0 8px 20px rgba(0,0,0,0.15); }
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>SHADOW MD</h1>
+  <img id="botImg" src="https://i.ibb.co/BHfCmfbw/jawadmd.jpg" alt="BOT DP">
+  <h1 id="botName">🌹 RANA FURQAN MD 🌹</h1>
   <p>Apna WhatsApp number (country code ke sath) likho aur pairing code lo. Link hone par SESSION_ID usi number par aa jayegi.</p>
-  <input id="num" inputmode="numeric" placeholder="923001234567" value="923003719761">
-  <button id="btn">Get Pairing Code</button>
+  <input id="num" inputmode="numeric" placeholder="923001234567" value="">
+  <button id="btn">🌹 GET PAIRING CODE 🌹</button>
   <div id="out"></div>
-  <div id="msg">Bot ready hone me 20-30 sec lagte hain, wait karo</div>
+  <div id="msg">Bot ready hone me 20-30 sec lagte hain, wait karo<br><small id="ownerTag" style="margin-top:10px;display:block;color:#888">🌹 BOT BY RANA FURQAN MD 🌹</small></div>
 </div>
 <script>
   const btn = document.getElementById('btn'), out = document.getElementById('out'), msg = document.getElementById('msg'), numInput = document.getElementById('num');
-  
+
+  // 🌹 CONFIG SE DP + NAME LAZMI AYEGA
+  fetch('/api/info').then(r=>r.json()).then(data=>{
+    if(data.image) document.getElementById('botImg').src = data.image;
+    if(data.botName) {
+      document.getElementById('botName').innerText = '🌹 ' + data.botName.toUpperCase() + ' 🌹';
+      document.title = '🌹 ' + data.botName + ' 🌹';
+    }
+    if(data.ownerName) document.getElementById('ownerTag').innerText = '🌹 BOT BY ' + data.ownerName.toUpperCase() + ' 🌹';
+  }).catch(()=>{});
+
   btn.onclick = async () => {
     const n = numInput.value.replace(/\D/g, '');
     if(n.length < 10){
@@ -43,46 +55,75 @@
       return;
     }
     out.textContent = ''; 
-    msg.textContent = '⏳ Code ban raha hai... 5 sec wait karo'; 
+    msg.innerHTML = '⏳ Code ban raha hai... 5 sec wait karo<br><small id="ownerTag">🌹 BOT BY RANA FURQAN MD 🌹</small>'; 
     msg.className = '';
     btn.disabled = true;
     btn.textContent = 'Wait...';
-    
+
     try {
-      const r = await fetch('/pair?number=' + n);
+      // 🌹 AAPKE BOT KA API ENDPOINT
+      let url = '/api/pair';
+      let options = { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({number:n}) };
+      let r = await fetch(url, options);
+      // Agar POST fail ho to GET try karo (purane bot ke liye)
+      if(!r.ok){
+        r = await fetch('/pair?number=' + n);
+      }
       const d = await r.json();
-      
-      if (d.code) { 
-        // Code ko 4-4 me dikhao
-        let code = d.code;
+
+      let code = d.code || (d.pairingCode) || '';
+      if (code) { 
         if(code.length === 8) code = code.slice(0,4) + '-' + code.slice(4);
         out.textContent = code; 
-        msg.textContent = '✅ WhatsApp > Linked Devices > Link with phone number mein ye code daalo.\nCode 60 sec me expire hota hai!';
+        msg.innerHTML = '✅ WhatsApp > Linked Devices > Link with phone number mein ye code daalo.<br>Code 60 sec me expire hota hai!<br><small id="ownerTag">🌹 BOT BY RANA FURQAN MD 🌹</small>';
         msg.className = 'success';
         btn.textContent = 'Code mil gaya!';
       } else {
+        // ID wala system hai to polling karo
+        if(d.id){
+          pollPair(d.id);
+          return;
+        }
         msg.textContent = '⚠️ ' + (d.error || 'Error aa gaya');
         msg.className = 'error';
         btn.textContent = 'Get Pairing Code';
-        // Agar bot starting hai to auto retry
         if((d.error||'').toLowerCase().includes('starting') || (d.error||'').toLowerCase().includes('wait')){
           msg.textContent += '\n\n15 sec baad khud try hoga...';
           setTimeout(()=> btn.click(), 15000);
         }
       }
     } catch (e) { 
-      console.log(e);
-      msg.textContent = '❌ Server se connect nahi hua\n\nReason: Render free server sota hai, 30 sec baad phir try karo.\nRender Logs me "Connecting..." dikhe to wait karo.';
+      msg.textContent = '❌ Server se connect nahi hua\n\nRailway free server sota hai, 30 sec baad phir try karo.';
       msg.className = 'error';
       btn.textContent = 'Retry Karo';
     }
     btn.disabled = false;
   };
-  
-  // Enter se bhi kaam kare
-  numInput.addEventListener('keypress', (e)=>{
-    if(e.key === 'Enter') btn.click();
-  });
+
+  async function pollPair(id){
+    try{
+      const r = await fetch('/api/pair/'+id);
+      const d = await r.json();
+      if(d.code){
+        let code = d.code;
+        if(code.length === 8) code = code.slice(0,4) + '-' + code.slice(4);
+        out.textContent = code;
+        msg.innerHTML = '✅ Code mil gaya! Linked Devices me daalo<br><small>🌹 BOT BY RANA FURQAN MD 🌹</small>';
+        msg.className = 'success';
+        btn.textContent = 'Code mil gaya!';
+        btn.disabled = false;
+        return;
+      }
+      if(d.status === 'pending' || !d.code){
+        setTimeout(()=>pollPair(id), 2000);
+      }
+    }catch(e){
+      msg.textContent = 'Polling error, retry';
+      btn.disabled = false;
+    }
+  }
+
+  numInput.addEventListener('keypress', (e)=>{ if(e.key === 'Enter') btn.click(); });
 </script>
 </body>
 </html>
