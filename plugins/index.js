@@ -28,7 +28,8 @@ ${prefix}tiktok
 ${prefix}fb
 ${prefix}insta
 
-Powered by SHADOW`.trim();
+*POWERED BY RANA FURQAN MD*
+`.trim();
 }
 
 export const menu = {
@@ -61,7 +62,7 @@ export const alive = {
     await sock.sendMessage(
       m.key.remoteJid,
       {
-        text: `*${config.botName} is Alive ✅*\nOwner: ${config.ownerName}`
+        text: `*${config.botName} is Alive ✅*\nOwner: ${config.ownerName}\n*Powered by RANA FURQAN MD*`
       },
       { quoted: m }
     );
@@ -72,32 +73,31 @@ export const antidelete = {
   command: "antidelete",
   alias: ["ad"],
   run: async (sock, m) => {
-    const txt = (m.body || "").toLowerCase().trim();
-    const args = txt.split(/\s+/);
-    const option = args[1] || "";
+    const args = (m.body || "").trim().split(/\s+/);
+    const option = (args[1] || "").toLowerCase();
 
     if (option === "on" || option === "allon") {
-      return await sock.sendMessage(
+      await sock.sendMessage(
         m.key.remoteJid,
-        {
-          text: "✅ *ANTIDELETE ON*\nNote: Actual deleted-message recovery requires an antidelete handler."
-        },
+        { text: "✅ *ANTIDELETE ON*\nNote: Actual deleted-message recovery requires an antidelete handler." },
         { quoted: m }
       );
+      return;
     }
 
     if (option === "off") {
-      return await sock.sendMessage(
+      await sock.sendMessage(
         m.key.remoteJid,
         { text: "❌ *ANTIDELETE OFF*" },
         { quoted: m }
       );
+      return;
     }
 
-    return await sock.sendMessage(
+    await sock.sendMessage(
       m.key.remoteJid,
       {
-        text: "*ANTIDELETE*\n.antidelete on\n.antidelete allon\n.antidelete off"
+        text: "*ANTIDELETE*\n.antidelete on\n.antidelete allon\n.antidelete off\n\n*Powered by RANA FURQAN MD*"
       },
       { quoted: m }
     );
