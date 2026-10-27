@@ -8,24 +8,77 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
 import pino from 'pino';
-import { default as makeWASocket, useMultiFileAuthState, delay, makeCacheableSignalKeyStore, DisconnectReason } from '@whiskeysockets/baileys';
+import { default as makeWASocket, useMultiFileAuthState, delay, makeCacheableSignalKeyStore, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { config } from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = config.port || 3000;
+const PORT = process.env.PORT || config.port || 3000;
 
 let status = 'DISCONNECTED';
-let pairingData = { code: null, expiry: null };
+let pairingData = { code: null, expiry: null, id: null };
 let sock = null;
 
-// 🌹 Express Setup
-app.use(express.json());
-app.use(express.static(__dirname));
+// 🌹 NEW - For public/index.html API
+const apiAttempts = new Map();
 
-// 🌹 Pair Site - DP Fixed + Safari Fixed
+app.use(express.json());
+app.use(express.static(join(__dirname, 'public')));
+
+// 🌹 API ROUTES - Jo aapki DP wali site dhoondti hai
+app.get('/api/info', (req,res)=>{
+  res.json({
+    botName: config.botName,
+    ownerName: config.ownerName || 'RANA FURQAN',
+    image: config.botImage,
+    botImage: config.botImage,
+    ok: true
+  });
+});
+
+app.get('/health', (req,res)=> res.json({ok:true, status}));
+
+app.post('/api/pair', async (req,res)=>{
+  let num = (req.body?.number || '').toString().replace(/[^0-9]/g,'');
+  if(!num) return res.status(400).json({error:'Number do!'});
+  try{
+    const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
+    const { version } = await fetchLatestBaileysVersion();
+    const tempSock = makeWASocket({
+      version,
+      auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino().child({level:'silent'})) },
+      printQRInTerminal: false,
+      logger: pino({level:'silent'}),
+      browser: ['Safari','Mac OS','15.0']
+    });
+    tempSock.ev.on('creds.update', saveCreds);
+    if(!tempSock.authState.creds.registered){
+      await delay(1500);
+      let code = await tempSock.requestPairingCode(num);
+      const id = Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      pairingData = { code, expiry: Date.now()+60000, id };
+      apiAttempts.set(id, { code, number: num });
+      console.log(`🌹 RANA FURQAN PAIR ${num} => ${code}`);
+      setTimeout(()=>{ try{tempSock.end()}catch{}; pairingData.code=null; }, 60000);
+      return res.json({ id, code, status:'ok' });
+    }else{
+      return res.status(400).json({error:'Already registered! Delete sessions folder'});
+    }
+  }catch(e){
+    console.error('pair error', e.message);
+    return res.status(500).json({error: 'Pair fail: '+e.message});
+  }
+});
+
+app.get('/api/pair/:id', (req,res)=>{
+  const a = apiAttempts.get(req.params.id);
+  if(!a) return res.status(404).json({error:'ID not found'});
+  return res.json({code: a.code});
+});
+
+// 🌹 Purana / wala page bhi rahega
 app.get('/', (req, res) => {
     res.send(`
 <!DOCTYPE html>
@@ -50,31 +103,35 @@ ${status === 'CONNECTED' ? '<h2 style="color:#0f0">✅ BOT CONNECTED 🌹</h2>' 
 <input name="number" value="${config.ownerNumber}" placeholder="92300XXXXXXX" required />
 <button type="submit">GET PAIR CODE</button>
 </form>
-${pairingData.code ? `<div class="code">${pairingData.code}</div><div style="color:yellow;font-size:12px;margin-top:8px">Valid 60s</div>` : ''}
+${pairingData.code ? `<div class="code">${pairingData.code}</div><div style="color:yellow;font-size:12px;margin-top:8px">Valid 60s - ID: ${pairingData.id}</div>` : ''}
 `}
+<p style="margin-top:15px"><a href="/public/index.html" style="color:red">New Stylish Page</a></p>
 </div>
 </body>
 </html>
 `);
 });
 
-// 🌹 Pair Code - 100% Same Fix, No Changes
 app.get('/getcode', async (req, res) => {
     let num = (req.query.number || '').replace(/[^0-9]/g, '');
     if(!num) return res.redirect('/');
     try {
         const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
+        const { version } = await fetchLatestBaileysVersion();
         const tempSock = makeWASocket({
+            version,
             auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino().child({level:'silent'})) },
             printQRInTerminal: false,
             logger: pino({level:'silent'}),
-            browser: ['Safari', 'Mac OS', '15.0'] // 🌹 Safari Fixed - Bilkul Sahi
+            browser: ['Safari', 'Mac OS', '15.0']
         });
         tempSock.ev.on('creds.update', saveCreds);
         if(!tempSock.authState.creds.registered){
             await delay(2000);
             let code = await tempSock.requestPairingCode(num);
-            pairingData = { code: code, expiry: Date.now()+60000 };
+            const id = Date.now().toString(36);
+            pairingData = { code, expiry: Date.now()+60000, id };
+            apiAttempts.set(id, { code, number: num });
             status = 'PAIRING';
             setTimeout(()=>{ pairingData.code = null }, 60000);
         }
@@ -82,29 +139,25 @@ app.get('/getcode', async (req, res) => {
     res.redirect('/');
 });
 
-// 🌹 BOT START - 108 Commands Fix Added Here
 async function startBot(){
     const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
     sock = makeWASocket({
         auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino().child({level:'silent'})) },
         printQRInTerminal: false,
         logger: pino({level:'silent'}),
-        browser: ['Safari', 'Mac OS', '15.0'], // 🌹 Safari
+        browser: ['Safari', 'Mac OS', '15.0'],
         markOnlineOnConnect: true
     });
-
     sock.ev.on('creds.update', saveCreds);
-
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
         if(connection === 'open'){
             status = 'CONNECTED';
             console.log('🌹 RANA FURQAN MD CONNECTED 🌹');
-            // 🌹 Personal pe Connect Message + DP
             try{
                 await sock.sendMessage(config.ownerNumber + '@s.whatsapp.net', {
                     image: { url: config.botImage },
-                    caption: `🌹 *${config.botName} CONNECTED!* 🌹\n\n✅ Bot Online Hai Bhai JAAN!\n📱 Number: ${config.ownerNumber}\n🌹 DP: ${config.botImage}`
+                    caption: `🌹 *${config.botName} CONNECTED!* 🌹\n\n✅ Bot Online Hai Bhai JAAN!`
                 });
             }catch(e){}
         }
@@ -117,8 +170,6 @@ async function startBot(){
             }
         }
     });
-
-    // 🌹 FIX FOR 108 COMMANDS - Plugins Loader
     const pluginsPath = join(__dirname, 'plugins');
     let plugins = new Map();
     if(fs.existsSync(pluginsPath)){
@@ -131,19 +182,14 @@ async function startBot(){
             }catch(e){ console.log(`Plugin Error ${file}:`, e.message) }
         }
     }
-
-    // 🌹 Message Handler - Yehi Fix Tha
     sock.ev.on('messages.upsert', async (m) => {
         try{
             const msg = m.messages[0];
             if(!msg.message || msg.key.fromMe) return;
-            
             const body = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || msg.message.videoMessage?.caption || '';
             if(!body.startsWith(config.prefix)) return;
-
             const args = body.slice(config.prefix.length).trim().split(/ +/);
             const command = args.shift().toLowerCase();
-
             for(let [name, plugin] of plugins){
                 try{
                     if(plugin.command && plugin.command.includes(command)){
@@ -156,4 +202,4 @@ async function startBot(){
 }
 
 startBot();
-app.listen(PORT, () => console.log(`🌹 ${config.botName} Running on ${PORT} - Safari Mode`));
+app.listen(PORT, () => console.log(`🌹 ${config.botName} Running on ${PORT} - Safari Mode - API FIXED`));
