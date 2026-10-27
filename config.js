@@ -1,3 +1,4 @@
+
 try {
   const d = await import('dotenv');
   (d.default ?? d).config();
@@ -25,7 +26,12 @@ export const config = {
   version: "5.0.0",
   authDir: "./auth",
   port: process.env.PORT || 3000,
-  keywords: ["mashaallah", "mashallah", "nice", "cute", "wah", "best", "behtreen", "behtarin", "ok", "okay", "beautiful", "good", "wow", "lovely", "amazing", "excellent", "zabardast", "subhanallah", "super", "awesome"]
+  keywords: [
+    "mashaallah", "mashallah", "nice", "cute", "wah", "best",
+    "behtreen", "behtarin", "ok", "okay", "beautiful", "good",
+    "wow", "lovely", "amazing", "excellent", "zabardast",
+    "subhanallah", "super", "awesome"
+  ]
 };
 
 export default config;
