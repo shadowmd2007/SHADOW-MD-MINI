@@ -1,131 +1,64 @@
 import fs from 'fs';
-import path from 'path';
 
 export const command = {
-  name: 'menu',
-  aliases: ['help', 'list', 'allmenu', 'rana'],
-  category: 'GENERAL',
-  description: 'Auto commands menu with DP',
-
-  run: async (ctx) => {
-    const { sock, jid, m, prefix } = ctx;
-
+  name: "menu",
+  aliases: ["allmenu", "help", "list"],
+  run: async ({ sock, jid, m, prefix }) => {
+    
+    // Config file se picture ka link lega
+    let MENU_IMG = process.env.BOT_DP || process.env.MENU_IMG || 'https://files.catbox.moe/y04tbj.jpg';
+    
     try {
-      // --- GET BOT DP ---
-      let botPpUrl;
-      try {
-        botPpUrl = await sock.profilePictureUrl(sock.user.id, 'image');
-      } catch {
-        botPpUrl = 'https://files.catbox.moe/y04tbj.jpg'; // Default DP
-      }
-
-      // --- GET VERSION, MODE, PREFIX ---
-      let version = '2.0.0';
-      try {
-        if (fs.existsSync('./package.json')) {
-          const pkg = JSON.parse(fs.readFileSync('./package.json'));
-          version = pkg.version || '2.0.0';
+      // config.js dhoodega
+      const possiblePaths = ['./config.js', '../config.js', '../../config.js', './settings/config.js', './src/config.js'];
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          const cfg = await import(`file://${process.cwd()}/${p}?t=${Date.now()}`);
+          const c = cfg.default || cfg;
+          MENU_IMG = c.BOT_IMAGE || c.MENU_IMAGE || c.ALIVE_IMG || c.IMAGE || c.BOT_DP || c.MENU || MENU_IMG;
+          break;
         }
-      } catch {}
-
-      let mode = process.env.MODE || process.env.BOT_MODE || 'PUBLIC';
-      let botName = process.env.BOT_NAME || 'SHADOW-MD';
-
-      // --- UPTIME ---
-      const uptimeSec = process.uptime();
-      const days = Math.floor(uptimeSec / 86400);
-      const hours = Math.floor((uptimeSec % 86400) / 3600);
-      const mins = Math.floor((uptimeSec % 3600) / 60);
-      const uptime = `${days}D ${hours}H ${mins}M`;
-
-      // --- AUTO LOAD ALL COMMANDS FROM FOLDER ---
-      const commandsPath = './commands';
-      let files = [];
-      try {
-        files = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
-      } catch { files = []; }
-
-      const totalCommands = files.length;
-
-      // Categorize
-      let categories = {};
-      for (const file of files) {
-        try {
-          const filePath = path.join(process.cwd(), commandsPath, file);
-          // We can't import dynamically easily, so we just list by name
-          const cmdName = file.replace('.js', '');
-          let cat = 'OTHER';
-          if (['play','video','song','drama','ytmp3','ytmp4','mp3'].includes(cmdName)) cat = 'DOWNLOADER';
-          if (['autoplay','autovideo','autoreact','antidelete','autodel'].includes(cmdName)) cat = 'AUTO SYSTEM';
-          if (['menu','help','ping','alive','owner','bot'].includes(cmdName)) cat = 'GENERAL';
-          if (['group','kick','add','promote'].includes(cmdName)) cat = 'GROUP';
-
-          if (!categories[cat]) categories[cat] = [];
-          categories[cat].push(cmdName);
-        } catch {}
       }
+    } catch (e) {
+      console.log('Config image not found, using default:', MENU_IMG);
+    }
 
-      let categoryText = '';
-      for (const [cat, cmds] of Object.entries(categories)) {
-        categoryText += `\n╭───❀ 🌹 ${cat} ❀───╮\n`;
-        for (const c of cmds) {
-          categoryText += `│ ◦ ${prefix}${c}\n`;
-        }
-        categoryText += `╰───❀ 🌹 ❀───╯\n`;
-      }
+    const totalCommands = global.commands ? global.commands.size : 109;
 
-      // --- FINAL MENU WITH BIG FONTS ---
-      const finalMenu = `╭━━━━━━━━━━━━━━━━━━━╮
-┃  🌹 𝐒𝐇𝐀𝐃𝐎𝐖 𝐌𝐃 🌹  ┃
-╰━━━━━━━━━━━━━━━━━━━╯
+    const menuText = `
+┏━━━━━━━━━━━━━━━━━━━━┓
+┃  🌹 RANA FURQAN MD 🌹  ┃
+┗━━━━━━━━━━━━━━━━━━━━┛
 
-╭───❀ 🌹 ❀───╮
-   💖 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐍 💖
-╰───❀ 🌹 ❀───╯
+     ❁ 🌹 ❁
+  💖 RANA KI JAN 💖
+     ❁ 🌹 ❁
 
-╭━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃  🌹 𝐁𝐎𝐓 𝐈𝐍𝐅𝐎 🌹  ┃
-╰━━━━━━━━━━━━━━━━━━━━━━━━╯
+┏━━━━━━━━━━━━━━━━━━━━┓
+┃  🌹 BOT INFO 🌹  ┃
+┗━━━━━━━━━━━━━━━━━━━━┛
 
-┏━━━━━━━━━━━━━━━━━━┓
-┃  🔰 𝐕𝐄𝐑𝐒𝐈𝐎𝐍 : ${version}
-┃  🔰 𝐌𝐎𝐃𝐄 : ${mode.toUpperCase()}
-┃  🔰 𝐏𝐑𝐄𝐅𝐈𝐗 : ${prefix}
-┃  🔰 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 : ${totalCommands}
-┃  🔰 𝐔𝐏𝐓𝐈𝐌𝐄 : ${uptime}
-┃  🔰 𝐎𝐖𝐍𝐄𝐑 : 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐀𝐍
-┗━━━━━━━━━━━━━━━━━━┛
+┌─────────────────┐
+│ 📚 VERSION : 5.0.0
+│ 📚 MODE : PUBLIC
+│ 📚 PREFIX : ${prefix}
+│ 📚 COMMANDS : ${totalCommands}
+│ 📚 OWNER : RANA KI JAAN
+└─────────────────┘
 
-╭━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃  🌹 𝐀𝐋𝐋 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 🌹  ┃
-╰━━━━━━━━━━━━━━━━━━━━━━━━╯
-${categoryText}
-╭━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃  🌹 𝐇𝐎𝐖 𝐓𝐎 𝐔𝐒𝐄 🌹  ┃
-╰━━━━━━━━━━━━━━━━━━━━━━━━╯
+🌹 POWERED BY MERI JAAN 🌹
 
-◦ For Song: ${prefix}play Pasoori
-◦ For Video: ${prefix}video Pasoori
-
-◦ If ${prefix}autoplay on -> Just write song name
-◦ If ${prefix}autovideo on -> Just write video name
-
-◦ ${prefix}antidelete on -> Deleted msgs only on your personal with number
-
-╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
-   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
-   💖 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐀𝐍 💖
-╰───❀ 🌹 ❀───╯
+Type ${prefix}allmenu for full list!
 `;
 
+    try {
       await sock.sendMessage(jid, { 
-        image: { url: botPpUrl }, 
-        caption: finalMenu 
+        image: { url: MENU_IMG },
+        caption: menuText 
       }, { quoted: m });
-
     } catch (e) {
-      await ctx.reply(`❌ Menu Error: ${e.message}`);
+      // Agar image fail ho to text hi bhej de
+      await sock.sendMessage(jid, { text: menuText }, { quoted: m });
     }
   }
-};
+}
