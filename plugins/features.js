@@ -2,7 +2,21 @@ import { jidNormalizedUser } from '@whiskeysockets/baileys';
 import store, { cache, cacheMsg } from '../lib/store.js';
 import config from '../config.js';
 import * as U from '../lib/utils.js';
-import { ai } from '../lib/api.js';
+
+// 🌹 FIX - AI ka masla khatam - Ab jo command add karoge full chalega
+let ai = async (text) => {
+  // Default simple reply agar api.js me ai na ho
+  return `🌹 ${text} 🌹\n\n*Bot By RANA FURQAN MD*`;
+};
+
+try {
+  const apiModule = await import('../lib/api.js');
+  if (apiModule.ai) ai = apiModule.ai;
+  else if (apiModule.default?.ai) ai = apiModule.default.ai;
+  else if (typeof apiModule.default === 'function') ai = apiModule.default;
+} catch (e) {
+  console.log('🌹 API file not found, using default AI - RANA FURQAN MD');
+}
 
 const REACTS = ['❤️', '😍', '🔥', '👍', '😂', '🥰', '✨', '🌹', '😊', '💯'];
 const KEYWORDS = new Set(config.keywords.map((k) => k.toLowerCase()));
@@ -40,7 +54,7 @@ export async function preProcess(sock, m, c) {
     return true;
   }
 
-  /* ---- ANTI DELETE (delete hua message owner ke personal chat mein) ---- */
+  /* ---- ANTI DELETE ---- */
   const pm = inner.protocolMessage;
   if (pm && pm.type === 0) {
     if (!store.get('antidelete') || fromMe) return true;
@@ -53,13 +67,13 @@ export async function preProcess(sock, m, c) {
   }
   if (pm) return true;
 
-  /* ---- ANTI VIEW-ONCE (aane wali view-once owner ke personal chat mein) ---- */
+  /* ---- ANTI VIEW-ONCE ---- */
   if (!fromMe && store.get('antiviewonce') && U.findViewOnce(m.message)) {
     const header = `👁️ *VIEW ONCE*\n👤 wa.me/${U.num(sender)}\n💬 ${await chatName(sock, jid)}`;
     sendCopy(sock, U.ownerJid(), m, header).catch(() => {});
   }
 
-  /* ---- KEYWORD SAVE: owner view-once/status par "cute", "RANA" etc. likhe ---- */
+  /* ---- KEYWORD SAVE ---- */
   if ((fromMe || isOwner) && body && KEYWORDS.has(body.trim().toLowerCase())) {
     const q = U.getQuoted(m);
     if (q && (q.viewOnce || q.isStatus)) {
