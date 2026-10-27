@@ -13,15 +13,12 @@ const PORT = process.env.PORT || 3000;
 
 let status = 'DISCONNECTED';
 let pairingData = { code: null, expiry: 0 };
-let sock = null;
+let currentPairSock = null;
 
 app.use(express.json());
 
-// 🌹 MAIN PAGE - LOGO YAHI RAHEGA
 app.get('/', (req, res) => {
-  const codeExpired = pairingData.code && Date.now() > pairingData.expiry;
-  if(codeExpired) pairingData.code = null;
-  
+  if(pairingData.code && Date.now() > pairingData.expiry) pairingData.code = null;
   res.send(`
 <!DOCTYPE html>
 <html>
@@ -33,22 +30,22 @@ body{background:#000;color:#fff;font-family:sans-serif;display:flex;justify-cont
 h1{color:red;margin:5px 0;font-size:22px}
 input{width:100%;padding:14px;border-radius:12px;border:none;margin:12px 0;text-align:center;font-size:17px;background:#222;color:#fff}
 button{width:100%;padding:14px;border-radius:12px;border:none;background:red;color:#fff;font-weight:bold;font-size:16px;cursor:pointer}
-.code{font-size:34px;letter-spacing:4px;color:#00ff00;background:#000;padding:14px;border-radius:12px;margin-top:15px;border:2px dashed #0f0;font-weight:bold}
+.code{font-size:34px;letter-spacing:4px;color:#00ff00;background:#000;padding:14px;border-radius:12px;margin-top:15px;border:2px dashed #0f0;font-weight:bold;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:0.7}}
 .small{color:yellow;font-size:11px;margin-top:8px}
 </style>
 </head>
 <body>
 <div class="card">
-<img class="dp" src="${config.botImage}" onerror="this.src='https://i.ibb.co/BHfCmfbw/jawadmd.jpg'" />
+<img class="dp" src="${config.botImage}" />
 <h1>🌹 ${config.botName} 🌹</h1>
-<p style="font-size:12px;color:#aaa">OWNER: ${config.ownerNumber} | STATUS: <b style="color:${status==='CONNECTED'?'#0f0':'#fa0'}">${status}</b></p>
-${status === 'CONNECTED' ? '<h2 style="color:#0f0">✅ CONNECTED 🌹<br>.menu likho</h2><a href="/logout"><button style="background:#333">LOGOUT</button></a>' : `
+<p style="font-size:12px;color:#aaa">STATUS: <b style="color:${status==='CONNECTED'?'#0f0':'#fa0'}">${status}</b></p>
+${status==='CONNECTED'?'<h2 style="color:#0f0">✅ CONNECTED 🌹</h2><p>.menu likho WhatsApp pe</p>':`
 <form method="GET" action="/getcode">
 <input name="number" type="text" value="${config.ownerNumber}" placeholder="92300XXXXXXX" required />
-<button type="submit">GET PAIR CODE</button>
+<button type="submit">GET CODE - FAST DALO!</button>
 </form>
-${pairingData.code ? `<div class="code">${pairingData.code}</div><div class="small">Code sahi likho - 60 sec valid hai<br>WhatsApp > Linked Devices > Link with phone number</div>` : '<div class="small" style="margin-top:12px;color:#888">Number dal ke GET PAIR CODE dabao</div>'}
-<p style="font-size:10px;color:#666;margin-top:15px">Agar 1 number pe na ho to dusra try karo,<br>lekin 2 min ruk ke naya code lo</p>
+${pairingData.code?`<div class="code">${pairingData.code}</div><div class="small">⏰ 15 SEC KE ANDAR WHATSAPP ME DALO!<br>WhatsApp > Linked Devices > Link with phone number<br><br>Logs me CODE GENERATED ke 15 sec me dalo warna socket band!</div>`:'<div class="small" style="color:#888;margin-top:10px">Code leke TURANT WhatsApp me dalo</div>'}
 `}
 </div>
 </body>
@@ -56,197 +53,150 @@ ${pairingData.code ? `<div class="code">${pairingData.code}</div><div class="sma
 `);
 });
 
-// 🌹 FIXED PAIR CODE LOGIC - YAHI ASLI FIX HAI
 app.get('/getcode', async (req, res) => {
   let num = (req.query.number || '').replace(/[^0-9]/g, '').trim();
   if(!num) return res.redirect('/');
   
-  console.log(`🌹 Pair request for ${num}`);
+  // Purana socket band karo
+  try{ if(currentPairSock){ currentPairSock.end(); } }catch{}
+  
+  console.log(`🌹 Pair request for ${num} - PREPARE FAST ENTRY!`);
   
   try{
-    // 1. Purana auth temp folder delete karo
     const tempAuthFolder = join(__dirname, 'auth_info_temp');
-    if(fs.existsSync(tempAuthFolder)){
-      fs.rmSync(tempAuthFolder, {recursive:true, force:true});
-    }
+    if(fs.existsSync(tempAuthFolder)) fs.rmSync(tempAuthFolder, {recursive:true, force:true});
     fs.mkdirSync(tempAuthFolder, {recursive:true});
 
-    // 2. Fresh auth state banao
     const { state, saveCreds } = await useMultiFileAuthState(tempAuthFolder);
     const { version } = await fetchLatestBaileysVersion();
-    
     console.log(`🌹 WA Version: ${version.join('.')}`);
 
-    // 3. Socket banao - Bina cache ke simple
     const tempSock = makeWASocket({
       version,
       auth: state,
       printQRInTerminal: false,
       logger: pino({level:'silent'}),
       browser: ['Ubuntu', 'Chrome', '20.0.04'],
-      syncFullHistory: false,
     });
-
+    
+    currentPairSock = tempSock;
     tempSock.ev.on('creds.update', saveCreds);
 
-    // 4. Wait karo socket ready hone tak
-    await delay(3500);
+    await delay(2500);
 
-    // 5. Check karo registered hai ya nahi
     if(tempSock.authState.creds.registered){
-      console.log('Already registered');
-      try{ tempSock.end(); }catch{}
+      console.log('Already registered in temp');
       pairingData.code = 'ALREADY LINKED';
       return res.redirect('/');
     }
 
-    // 6. Pairing code mango
-    console.log(`Requesting code for ${num}...`);
+    console.log(`🌹 Requesting code for ${num}...`);
     let rawCode = await tempSock.requestPairingCode(num);
     let prettyCode = rawCode.includes('-') ? rawCode : `${rawCode.slice(0,4)}-${rawCode.slice(4)}`;
     
     pairingData = {
       code: prettyCode,
       raw: rawCode,
-      expiry: Date.now() + 90000, // 90 sec
+      expiry: Date.now() + 180000, // 3 min
       tempFolder: tempAuthFolder,
-      sock: tempSock
     };
 
-    console.log(`🌹 CODE GENERATED: ${prettyCode} (raw: ${rawCode}) for ${num}`);
+    console.log(`🌹🌹🌹 CODE GENERATED: ${prettyCode} for ${num} - ENTER IN 15 SEC! 🌹🌹🌹`);
 
-    // 7. Jab user code dale to main auth me copy karo
     tempSock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect } = update;
-      console.log('Connection update:', connection);
-      
+      if(connection) console.log(`Connection update: ${connection}`);
+      else console.log('Connection update: undefined (normal)');
+
       if(connection === 'open'){
-        console.log('🌹🌹🌹 PAIR SUCCESSFUL - COPYING CREDS 🌹🌹🌹');
+        console.log('🌹🌹🌹 PAIR SUCCESSFUL - COPYING TO MAIN AUTH 🌹🌹🌹');
         try{
           const mainAuth = config.authDir;
           if(fs.existsSync(mainAuth)) fs.rmSync(mainAuth, {recursive:true, force:true});
           fs.mkdirSync(mainAuth, {recursive:true});
-          
-          // Saari files copy karo
           const files = fs.readdirSync(tempAuthFolder);
           for(let f of files){
             const src = join(tempAuthFolder, f);
-            const dest = join(mainAuth, f);
-            if(fs.lstatSync(src).isFile()){
-              fs.copyFileSync(src, dest);
-            }
+            if(fs.lstatSync(src).isFile()) fs.copyFileSync(src, join(mainAuth, f));
           }
-          console.log('Creds copied to main auth');
+          console.log('✅ Creds copied, starting bot...');
           status = 'CONNECTED';
           pairingData.code = null;
-          
-          // Main bot start karo
-          setTimeout(()=> startBot(), 1000);
-        }catch(e){
-          console.log('Copy error:', e.message);
-        }
+          setTimeout(()=> startBot(), 1500);
+        }catch(e){ console.log('Copy error:', e.message); }
       }
+      
       if(connection === 'close'){
-        console.log('Temp connection closed');
+        const code = lastDisconnect?.error?.output?.statusCode;
+        console.log(`Temp connection closed, code: ${code}, reason: ${lastDisconnect?.error?.message}`);
+        if(code === 408){
+          console.log('Timeout - user did not enter code fast enough');
+        }
       }
     });
 
-    // 8. 90 sec baad socket band karo
+    // 3 min tak khula rakho
     setTimeout(()=>{
       try{ 
-        if(pairingData.sock) pairingData.sock.end(); 
-        console.log('Temp sock ended after timeout');
+        console.log('Temp sock ended after 3 min timeout');
+        tempSock.end(); 
       }catch{}
-    }, 90000);
+    }, 180000);
 
   }catch(e){
-    console.log('PAIR ERROR FULL:', e);
-    pairingData.code = 'ERROR - Check Logs';
+    console.log('PAIR ERROR:', e.message, e.stack);
+    pairingData.code = 'ERROR: '+e.message;
   }
   
   res.redirect('/');
 });
 
-app.get('/logout', (req,res)=>{
-  try{
-    if(fs.existsSync(config.authDir)) fs.rmSync(config.authDir,{recursive:true,force:true});
-    status='DISCONNECTED';
-    console.log('Logged out, auth deleted');
-  }catch{}
-  res.redirect('/');
-});
-
-// BOT START - LOGO SAME RAHEGA
 async function startBot(){
   if(!fs.existsSync(config.authDir) || fs.readdirSync(config.authDir).length===0){
-    status='DISCONNECTED'; console.log('No auth, waiting for pair'); return;
+    status='DISCONNECTED'; return;
   }
-  console.log('Starting bot with existing auth...');
+  console.log('Starting main bot...');
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
-  sock = makeWASocket({
+  const sock = makeWASocket({
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino().child({level:'silent'})) },
     printQRInTerminal: false,
     logger: pino({level:'silent'}),
     browser: ['Ubuntu', 'Chrome', '20.0.04'],
     markOnlineOnConnect: true,
-    syncFullHistory: false,
   });
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('connection.update', async (u)=>{
-    const { connection, lastDisconnect } = u;
-    if(connection==='open'){
+    if(u.connection==='open'){
       status='CONNECTED';
-      console.log('🌹 RANA FURQAN MD FULLY CONNECTED 🌹');
+      console.log('🌹🌹🌹 RANA FURQAN MD FULLY CONNECTED 🌹🌹🌹');
       try{
-        await sock.sendMessage(config.ownerNumber+'@s.whatsapp.net',{
-          image:{url:config.botImage},
-          caption:`🌹 *${config.botName} CONNECTED!* 🌹\n\n✅ Bot Online Hai Bhai JAAN!\n📱 .menu likho\n\nOwner: ${config.ownerNumber}`
-        });
-      }catch(e){ console.log('Welcome msg error', e.message) }
+        await sock.sendMessage(config.ownerNumber+'@s.whatsapp.net',{image:{url:config.botImage},caption:`🌹 *${config.botName} CONNECTED!* 🌹\n\n✅ Bot Online Bhai JAAN!`});
+      }catch{}
     }
-    if(connection==='close'){
-      const reason = lastDisconnect?.error?.output?.statusCode;
-      console.log('Bot connection closed, reason:', reason);
-      if(reason !== DisconnectReason.loggedOut){
-        console.log('Reconnecting in 3 sec...');
-        setTimeout(startBot, 3000);
-      } else {
-        status='DISCONNECTED';
-        if(fs.existsSync(config.authDir)) fs.rmSync(config.authDir,{recursive:true,force:true});
-      }
+    if(u.connection==='close'){
+      const reason = u.lastDisconnect?.error?.output?.statusCode;
+      console.log('Main bot closed, reason:', reason);
+      if(reason !== DisconnectReason.loggedOut) setTimeout(startBot, 3000);
+      else { status='DISCONNECTED'; if(fs.existsSync(config.authDir)) fs.rmSync(config.authDir,{recursive:true,force:true}); }
     }
   });
-
-  // Plugins load
   const pluginsPath = join(__dirname, 'plugins');
   let plugins = new Map();
   if(fs.existsSync(pluginsPath)){
-    for(let file of fs.readdirSync(pluginsPath).filter(f=>f.endsWith('.js'))){
-      try{
-        const mod = await import(`file://${join(pluginsPath,file)}?update=${Date.now()}`);
-        plugins.set(file, mod.default||mod);
-      }catch(e){ console.log(`Plugin ${file} error:`, e.message) }
+    for(let f of fs.readdirSync(pluginsPath).filter(x=>x.endsWith('.js'))){
+      try{ const m = await import(`file://${join(pluginsPath,f)}?update=${Date.now()}`); plugins.set(f, m.default||m); }catch{}
     }
-    console.log(`Loaded ${plugins.size} plugins`);
   }
-
   sock.ev.on('messages.upsert', async (m)=>{
     try{
       const msg=m.messages[0]; if(!msg.message||msg.key.fromMe) return;
-      const body=msg.message.conversation||msg.message.extendedTextMessage?.text||msg.message.imageMessage?.caption||msg.message.videoMessage?.caption||'';
+      const body=msg.message.conversation||msg.message.extendedTextMessage?.text||msg.message.imageMessage?.caption||'';
       if(!body.startsWith(config.prefix)) return;
-      const args=body.slice(config.prefix.length).trim().split(/ +/);
-      const command=args.shift().toLowerCase();
-      for(let [name, plugin] of plugins){
-        try{
-          if(plugin.command && plugin.command.includes(command)){
-            await (plugin.default ? plugin.default(sock, msg, args, {config}) : plugin(sock, msg, args, {config}));
-          }
-        }catch(e){ console.log(`Cmd ${command} error`, e.message) }
-      }
-    }catch(e){ console.log('Message error', e.message) }
+      const args=body.slice(config.prefix.length).trim().split(/ +/); const cmd=args.shift().toLowerCase();
+      for(let [k,p] of plugins){ try{ if(p.command&&p.command.includes(cmd)){ await (p.default?p.default(sock,msg,args,{config}):p(sock,msg,args,{config})); } }catch{} }
+    }catch{}
   });
 }
 
 startBot();
-app.listen(PORT, ()=> console.log(`🌹 ${config.botName} Running on ${PORT} - FIXED PAIR LOGIC`));
+app.listen(PORT, ()=> console.log(`🌹 Running FIXED 3min socket on ${PORT}`));
