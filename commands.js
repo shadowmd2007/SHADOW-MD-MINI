@@ -1,10 +1,5 @@
-// commands.js - ROOT ROUTER
-// Ye file khud koi command nahi rakhti. commands/ folder ki har file ek command (ya kuch commands) hoti hai,
-// yahan unhe naam se register karke message aane par naam dekh kar sahi file chalayi jati hai.
+// commands.js — AUTO COMMAND LOADER
 
-
-// Command file ka format:   export const command = { name, aliases?, category?, owner?, group?, run: async (ctx) => {} }
-// (ek file mein kai commands ho to:  export const commands = [ {...}, {...} ])
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -13,115 +8,230 @@ import { settings } from './lib/shared.js';
 import { CommandError } from './lib/command-utils.js';
 
 const B = (k) => baileys[k] ?? baileys.default?.[k];
-const jidNormalizedUser = B('jidNormalizedUser') ?? ((j) => (j || '').replace(/:\d+@/, '@'));
+const jidNormalizedUser =
+  B('jidNormalizedUser') ?? ((j) => (j || '').replace(/:\d+@/, '@'));
 const normalizeMessageContent = B('normalizeMessageContent');
 
 export { settings };
 
-const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'commands');
-const CAT = { MAIN: 'general', UTILITY: 'general' }; // baaki categories jaisi hain waisi (lowercase)
+const DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'commands'
+);
 
-export let commands = new Map(); // naam/alias -> command
-export let commandsList = [];    // sirf asli commands (menu ke liye)
+export let commands = new Map();
+export let commandsList = [];
 
-/* ---------------- commands/ folder load ---------------- */
 export async function loadCommands(bust = false) {
-  const stamp = bust ? '?v=' + Date.now() : '';
   const map = new Map();
   const list = [];
-  const files = fs.existsSync(DIR) ? fs.readdirSync(DIR).filter((f) => f.endsWith('.js')).sort() : [];
-  const aliasMaps = [];
   const pending = [];
-  let failed = 0;
+  const aliasMaps = [];
+
+  const files = fs.existsSync(DIR)
+    ? fs.readdirSync(DIR).filter((f) => f.endsWith('.js')).sort()
+    : [];
 
   for (const f of files) {
     try {
-      const mod = await import(pathToFileURL(path.join(DIR, f)).href + stamp);
-      if (mod.aliases && typeof mod.aliases === 'object') aliasMaps.push(mod.aliases);
-      const defs = [mod.command, mod.default, ...(Array.isArray(mod.commands) ? mod.commands : [])].filter((d) => d && typeof d === 'object');
+      const url = pathToFileURL(path.join(DIR, f));
+      if (bust) url.searchParams.set('v', Date.now());
+
+      const mod = await import(url.href);
+
+      if (mod.aliases && typeof mod.aliases === 'object') {
+        aliasMaps.push(mod.aliases);
+      }
+
+      const defs = [
+        mod.command,
+        mod.default,
+        ...(Array.isArray(mod.commands) ? mod.commands : [])
+      ].filter((d) => d && typeof d === 'object');
+
       for (const d of defs) {
-        if (typeof d.name !== 'string' || typeof d.run !== 'function' || d.hidden) continue;
+        if (
+          typeof d.name !== 'string' ||
+          typeof d.run !== 'function' ||
+          d.hidden
+        ) continue;
+
         const name = d.name.toLowerCase();
-        const cat = String(d.category || 'general');
+
         const entry = {
           name,
-          cat: CAT[cat.toUpperCase()] || cat.toLowerCase(),
-          owner: !!d.owner || String(d.category || '').toLowerCase() === 'owner',
+          cat: String(d.category || 'general').toLowerCase(),
+          owner:
+            !!d.owner ||
+            String(d.category || '').toLowerCase() === 'owner',
           group: !!d.group,
           desc: d.description || '',
           file: f,
           run: d.run
         };
-        if (map.has(name)) console.log(`WARNING: "${name}" do files mein hai (${map.get(name).file} aur ${f}), ${f} wali chalegi`);
+
         map.set(name, entry);
-        const i = list.findIndex((x) => x.name === name);
-        if (i >= 0) list[i] = entry; else list.push(entry);
-        for (const a of d.aliases || d.alias || []) pending.push([String(a).toLowerCase(), name]);
+
+        const index = list.findIndex((x) => x.name === name);
+        if (index >= 0) list[index] = entry;
+        else list.push(entry);
+
+        for (const a of d.aliases || d.alias || []) {
+          pending.push([String(a).toLowerCase(), name]);
+        }
       }
     } catch (e) {
-      failed++;
-      console.log(`LOAD FAIL commands/${f}:`, e.message);
+      console.error(`LOAD FAIL commands/${f}:`, e.message);
     }
   }
 
-  // aliases sirf tab lagti hain jab naam khali ho, is se koi asli command kabhi dab nahi sakti
-  for (const [a, target] of pending) if (!map.has(a)) map.set(a, map.get(target));
-  for (const am of aliasMaps) for (const [a, target] of Object.entries(am)) if (!map.has(a) && map.has(target)) map.set(a, map.get(target));
+  for (const [alias, target] of pending) {
+    if (!map.has(alias) && map.has(target)) {
+      map.set(alias, map.get(target));
+    }
+  }
+
+  for (const aliases of aliasMaps) {
+    for (const [alias, target] of Object.entries(aliases)) {
+      if (!map.has(alias) && map.has(target)) {
+        map.set(alias, map.get(target));
+      }
+    }
+  }
 
   commands = map;
   commandsList.length = 0;
   commandsList.push(...list);
-  console.log(`COMMANDS LOADED: ${list.length} commands, ${files.length} files${failed ? ', ' + failed + ' FAIL' : ''}`);
+
+  console.log(`COMMANDS LOADED: ${list.length} commands, ${files.length} files`);
+
   return list.length;
 }
 
 export const totalCommands = () => commandsList.length;
+
 await loadCommands();
 
-/* ---------------- message handler ---------------- */
+// Automatically reload commands when files are added or changed.
+let reloadTimer;
+
+if (fs.existsSync(DIR)) {
+  fs.watch(DIR, (_event, filename) => {
+    if (filename && !String(filename).endsWith('.js')) return;
+
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => {
+      loadCommands(true).catch(console.error);
+    }, 500);
+  });
+}
+
+// MESSAGE HANDLER
 export async function handleMessage(sock, m) {
-  const jid = m.key?.remoteJid; if (!jid || !m.message) return;
-  const content = normalizeMessageContent ? normalizeMessageContent(m.message) : m.message;
-  let text = (content?.conversation || content?.extendedTextMessage?.text || content?.imageMessage?.caption || content?.videoMessage?.caption || '').trim();
-  if (!text) return;
+  const jid = m.key?.remoteJid;
+  if (!jid || !m.message) return;
+
+  const content = normalizeMessageContent
+    ? normalizeMessageContent(m.message)
+    : m.message;
+
+  const text = (
+    content?.conversation ||
+    content?.extendedTextMessage?.text ||
+    content?.imageMessage?.caption ||
+    content?.videoMessage?.caption ||
+    ''
+  ).trim();
+
+  if (!text || !text.startsWith(settings.prefix)) return;
+
+  const commandText = text.slice(settings.prefix.length).trim();
+  if (!commandText) return;
+
+  const [rawName, ...args] = commandText.split(/\s+/);
 
   const senderJid = jidNormalizedUser(m.key.participant || jid);
   const senderNum = senderJid.split('@')[0];
   const myNum = jidNormalizedUser(sock.user?.id || '').split('@')[0];
-  const ownerNums = (process.env.OWNER_NUMBER || settings.ownerNumber).split(',').map((x) => x.trim());
-  const isOwner = m.key.fromMe || ownerNums.includes(senderNum) || senderNum === settings.ownerNumber || senderNum === myNum;
 
-  // command ka naam dekho
-  if (!text.startsWith(settings.prefix)) return;
-  const commandText = text.slice(settings.prefix.length).trim();
-  if (!commandText) return;
-  const [rawName, ...args] = commandText.split(/\s+/);
+  const ownerNums = String(process.env.OWNER_NUMBER || settings.ownerNumber || '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  const isOwner =
+    m.key.fromMe ||
+    ownerNums.includes(senderNum) ||
+    senderNum === String(settings.ownerNumber || '') ||
+    senderNum === myNum;
+
   const cmd = commands.get(rawName.toLowerCase());
   if (!cmd) return;
+
   if (settings.mode === 'private' && !isOwner) return;
-  if (cmd.owner && !isOwner) return sock.sendMessage(jid, { text: 'ONLY OWNER' }, { quoted: m }).catch(() => {});
+
+  const reply = (message) =>
+    sock.sendMessage(
+      jid,
+      { text: String(message) },
+      { quoted: m }
+    ).catch(() => {});
+
+  if (cmd.owner && !isOwner) return reply('ONLY OWNER');
 
   const isGroup = jid.endsWith('@g.us');
-  const reply = (t) => sock.sendMessage(jid, { text: String(t) }, { quoted: m }).catch(() => sock.sendMessage(jid, { text: String(t) }));
-  if (cmd.group && !isGroup) return reply('❌ Ye command sirf group mein chalti hai.');
+  if (cmd.group && !isGroup) {
+    return reply('❌ Ye command sirf group mein chalti hai.');
+  }
+
+  const info = content?.extendedTextMessage?.contextInfo || {};
+  let targets = info.mentionedJid?.length
+    ? info.mentionedJid
+    : info.participant
+      ? [info.participant]
+      : [];
+
+  if (!targets.length) {
+    targets = args
+      .map((a) => a.replace(/\D/g, ''))
+      .filter((n) => n.length >= 8)
+      .map((n) => n + '@s.whatsapp.net');
+  }
 
   let metaCache = null;
-  const getMeta = async () => (metaCache ||= isGroup ? await sock.groupMetadata(jid) : null);
-  const info = content?.extendedTextMessage?.contextInfo || {};
-  let targets = info.mentionedJid?.length ? info.mentionedJid : info.participant ? [info.participant] : [];
-  if (!targets.length) targets = args.map((a) => a.replace(/\D/g, '')).filter((a) => a.length >= 8).map((n) => n + '@s.whatsapp.net');
 
-  // ctx: purani commands (c.m, c.jid ...) aur folder wali commands (ctx.msg, ctx.remote ...) dono ke naam maujood hain
-  const c = {
-    sock, m, jid, args, text: args.join(' '), isGroup, isOwner, reply, getMeta, targets, content, prefix: settings.prefix,
-    msg: m, remote: jid, sender: senderNum, senderNum, senderJid,
-    settings, commandList: commandsList, reload: () => loadCommands(true)
+  const getMeta = async () =>
+    (metaCache ||= isGroup ? await sock.groupMetadata(jid) : null);
+
+  const ctx = {
+    sock,
+    m,
+    jid,
+    args,
+    text: args.join(' '),
+    isGroup,
+    isOwner,
+    reply,
+    getMeta,
+    targets,
+    content,
+    prefix: settings.prefix,
+    msg: m,
+    remote: jid,
+    sender: senderNum,
+    senderNum,
+    senderJid,
+    settings,
+    commandList: commandsList,
+    reload: () => loadCommands(true)
   };
+
   try {
-    await cmd.run(c);
+    await cmd.run(ctx);
   } catch (e) {
     if (e instanceof CommandError) return reply(e.message);
-    console.log('CMD ERR (' + cmd.name + '):', e.message);
+    console.error(`CMD ERR (${cmd.name}):`, e);
+    return reply('❌ Command mein error aaya.');
   }
 }
 
