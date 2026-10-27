@@ -1,8 +1,7 @@
 import fs from 'fs';
-import { join, dirname } from 'url';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import config from '../config.js';
-import store from '../lib/store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -12,72 +11,49 @@ function fancy(text){
   return text.split('').map(c => map[c] || c).join('');
 }
 
-function clockString(seconds){
-  seconds = Number(seconds);
-  const d = Math.floor(seconds / (3600*24));
-  const h = Math.floor((seconds % (3600*24)) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${d}D ${h}H ${m}M ${s}S`;
+function clockString(s){
+  s=Number(s);
+  const d=Math.floor(s/(3600*24));
+  const h=Math.floor((s%(3600*24))/3600);
+  const m=Math.floor((s%3600)/60);
+  const sec=Math.floor(s%60);
+  return `${d}D ${h}H ${m}M ${sec}S`;
 }
 
 const menu = async (sock, m) => {
-  const pluginsPath = join(__dirname, '../');
-  // Auto scan plugins folder
-  const pluginsDir = join(__dirname, '../plugins');
+  const dir1 = join(__dirname, '../plugins');
+  const dir2 = join(__dirname, '../commands');
+  let pluginsDir = fs.existsSync(dir1) ? dir1 : dir2;
+  if(!fs.existsSync(pluginsDir)) pluginsDir = dir2;
+  
   let allCmds = [];
   try{
     const files = fs.readdirSync(pluginsDir).filter(f=>f.endsWith('.js'));
     for(let file of files){
       try{
         const content = fs.readFileSync(join(pluginsDir, file), 'utf8');
-        const match = content.match(/command\s*=\s*\[([^\]]+)\]/);
-        const match2 = content.match(/command\s*:\s*\[([^\]]+)\]/);
-        const mtxt = match?.[1] || match2?.[1] || '';
-        if(mtxt){
-          const cmds = mtxt.split(',').map(s=>s.replace(/['"`\s]/g,'').trim()).filter(Boolean);
+        const match = content.match(/command\s*=\s*\[([^\]]+)\]/) || content.match(/command\s*:\s*\[([^\]]+)\]/);
+        if(match?.[1]){
+          const cmds = match[1].split(',').map(s=>s.replace(/['"`\s]/g,'').trim()).filter(Boolean);
           allCmds.push(...cmds);
         }
       }catch{}
     }
   }catch{}
-  allCmds = [...new Set(allCmds)].sort();
-  
-  const uptime = clockString(process.uptime());
-  const mode = store.get('public') ? 'PUBLIC' : 'PRIVATE';
-  const total = allCmds.length || 108;
+  allCmds=[...new Set(allCmds)].sort();
+  const uptime=clockString(process.uptime());
+  const total=allCmds.length||8;
+  let cmdList=allCmds.map(c=>`│ 🌹 ${fancy(c)}`).join('\n');
+  if(!cmdList) cmdList=`│ 🌹 ${fancy('ping')}\n│ 🌹 ${fancy('menu')}\n│ 🌹 ${fancy('alive')}`;
 
-  let cmdList = allCmds.map(c => `│ 🌹 ${fancy(c)}`).join('\n');
-  if(!cmdList) cmdList = `│ 🌹 ${fancy('ping')}\n│ 🌹 ${fancy('alive')}\n│ 🌹 ${fancy('owner')}\n│ 🌹 ${fancy('song')}\n│ 🌹 ${fancy('video')}`;
+  let txt=`╭─🌹─ ${fancy('RANA FURQAN MD')} ─🌹─╮\n│\n│ 🌹 ${fancy('BOT')} : ${fancy('MERI JAAN')}\n│ 🌹 ${fancy('PREFIX')} : ${fancy(config.prefix)}\n│ 🌹 ${fancy('UPTIME')} : ${fancy(uptime)}\n│ 🌹 ${fancy('COMMANDS')} : ${fancy(total.toString())}\n│\n╰─🌹─────────────🌹─╯\n\n╭─🌹─ ${fancy('ALL COMMANDS')} ─🌹─╮\n│\n${cmdList}\n│\n╰─🌹─────────────🌹─╯\n\n🌹 ${fancy('BOT BY RANA FURQAN')} 🌹`;
 
-  let txt = `
-╭─🌹─ ${fancy('RANA FURQAN MD')} ─🌹─╮
-│
-│ 🌹 ${fancy('OWNER')} : ${fancy('RANA FURQAN MD')}
-│ 🌹 ${fancy('BOT NAME')} : ${fancy('MERI JAAN')}
-│ 🌹 ${fancy('PREFIX')} : ${fancy(config.prefix)}
-│ 🌹 ${fancy('UPTIME')} : ${fancy(uptime)}
-│ 🌹 ${fancy('MODE')} : ${fancy(mode)}
-│ 🌹 ${fancy('COMMANDS')} : ${fancy(total.toString())}
-│
-╰─🌹─────────────🌹─╯
-
-╭─🌹─ ${fancy('ALL COMMANDS')} ─🌹─╮
-│
-${cmdList}
-│
-╰─🌹─────────────🌹─╯
-
-🌹 ${fancy('BOT BY RANA FURQAN MD')} 🌹
-🌹 ${fancy('MERI JAAN')} 🌹
-`;
-
-  await sock.sendMessage(m.key.remoteJid, {
-    image: { url: config.botImage },
-    caption: txt
-  }, { quoted: m });
+  try{
+    await sock.sendMessage(m.key.remoteJid, { image: { url: config.botImage }, caption: txt }, { quoted: m });
+  }catch{
+    await sock.sendMessage(m.key.remoteJid, { text: txt }, { quoted: m });
+  }
 };
 
 export default menu;
-menu.command = ['menu', 'allmenu', 'help', 'commands', 'list'];
-menu.desc = 'RANA FURQAN MD MENU';
+menu.command = ['menu','allmenu','help','commands','list','rana','merijaan'];
