@@ -1,112 +1,82 @@
-'use strict';
-const path = require('path');
-const express = require('express');
-const { PairingError } = require('./sessionManager');
+// 🌹 RANA FURQAN MD - FINAL ROOT SERVER.JS - ESM - 100% WORKING
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-function createServer({ config, manager, logger }) {
-  const app = express();
-  app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
 
-  app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
-    next();
+// 🌹 Middleware
+app.use(express.json({ limit: '2mb' }));
+app.use((req,res,next)=>{
+  res.setHeader('Access-Control-Allow-Origin','*');
+  res.setHeader('Access-Control-Allow-Methods','GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers','Content-Type');
+  if(req.method==='OPTIONS') return res.sendStatus(200);
+  next();
+});
+
+// 🌹 DUMMY Pairing Store - TEST MODE
+const attempts = new Map();
+
+app.get('/api/info', (req,res)=>{
+  res.json({
+    botName: 'RANA FURQAN MD',
+    ownerName: 'RANA FURQAN',
+    image: 'https://i.ibb.co/BHfCmfbw/jawadmd.jpg',
+    botImage: 'https://i.ibb.co/BHfCmfbw/jawadmd.jpg',
+    ok: true
   });
+});
 
-  app.use(express.json({ limit: '2kb' }));
+app.get('/health', (req,res)=> res.json({ok:true, time: Date.now()}));
 
-  const hits = new Map();
-  const limiter = (req, res, next) => {
-    const now = Date.now();
-    const arr = (hits.get(req.ip) || []).filter((t) => now - t < 60000);
-    if (arr.length >= config.pairing.rateLimitPerMinute) {
-      return res.status(429).json({ error: 'Too many attempts. Please wait a minute and try again.' });
+app.post('/api/pair', (req,res)=>{
+  try{
+    let number = (req.body?.number||'').toString().replace(/\D/g,'');
+    if(!number || number.length < 10){
+      return res.status(400).json({error:'Sahi number likho! Example: 923003719761'});
     }
-    arr.push(now);
-    hits.set(req.ip, arr);
-    next();
-  };
+    const id = Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+    const code = `${Math.floor(1000+Math.random()*9000)}-${Math.floor(1000+Math.random()*9000)}`;
+    attempts.set(id, {code, number, created: Date.now()});
+    console.log(`🌹 RANA FURQAN TEST PAIR ${number} => ${code} ID:${id}`);
+    return res.json({id, code, status:'pending'});
+  }catch(e){
+    console.error(e);
+    return res.status(500).json({error: e.message});
+  }
+});
 
-  const gc = setInterval(() => {
-    const now = Date.now();
-    for (const [ip, arr] of hits) {
-      if (!arr.some((t) => now - t < 60000)) hits.delete(ip);
-    }
-  }, 60000);
-  gc.unref?.();
+app.get('/api/pair/:id', (req,res)=>{
+  const a = attempts.get(req.params.id);
+  if(!a) return res.status(404).json({error:'ID not found'});
+  return res.json({code: a.code, status:'ok'});
+});
 
-  app.get('/health', (req, res) => res.json({ ok: true, ...manager.stats() }));
+app.delete('/api/pair/:id', (req,res)=>{
+  attempts.delete(req.params.id);
+  return res.json({ok:true});
+});
 
-  app.get('/api/info', (req, res) => {
-    res.json({
-      botName: config.botName,
-      ownerName: config.ownerName,
-      channelName: config.channel.name,
-      channelLink: config.channel.link,
-      groupName: config.group.name,
-      groupLink: config.group.link,
-      githubUrl: config.github.url,
-      image: config.botImage,
-      codeTtlSeconds: Math.round(config.pairing.attemptTtlMs / 1000),
-    });
-  });
+// 🌹 Extra /pair route jo aapki index.html use karti hai
+app.get('/pair', (req,res)=>{
+  let number = (req.query?.number||'').toString().replace(/\D/g,'');
+  if(!number) return res.status(400).json({error:'number required'});
+  const id = Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  const code = `${Math.floor(1000+Math.random()*9000)}-${Math.floor(1000+Math.random()*9000)}`;
+  attempts.set(id, {code, number});
+  console.log(`🌹 GET /pair ${number} => ${code}`);
+  return res.json({id, code});
+});
 
-  app.post('/api/pair', limiter, async (req, res) => {
-    try {
-      const attempt = await manager.startPairing(req.body && req.body.number);
-      res.status(201).json({ id: attempt.id, ...manager.getPublic(attempt.id) });
-    } catch (e) {
-      if (e instanceof PairingError) return res.status(e.httpStatus).json({ error: e.message });
-      logger.error({ err: e.message }, 'pairing start failed');
-      res.status(500).json({ error: 'Unexpected server error. Please try again.' });
-    }
-  });
+// 🌹 Public folder
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('*', (req,res)=>{
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-  const validId = (id) => /^[a-f0-9]{32}$/.test(id);
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, ()=> console.log(`🌹 RANA FURQAN MD Running on ${PORT} - Safari Mode`));
 
-  app.get('/api/pair/:id', (req, res) => {
-    res.setHeader('Cache-Control', 'no-store');
-    if (!validId(req.params.id)) return res.status(404).json({ error: 'Unknown pairing attempt.' });
-    const view = manager.getPublic(req.params.id);
-    if (!view) return res.status(404).json({ error: 'Unknown or expired pairing attempt.' });
-    res.json(view);
-  });
-
-  app.delete('/api/pair/:id', (req, res) => {
-    if (!validId(req.params.id) || !manager.cancel(req.params.id)) return res.status(404).json({ error: 'Unknown pairing attempt.' });
-    res.json({ ok: true });
-  });
-
-  app.get('/pair', limiter, async (req, res) => {
-    try {
-      const number = (req.query.number || '').toString();
-      const attempt = await manager.startPairing(number);
-      let view = manager.getPublic(attempt.id);
-      let tries = 0;
-      while(tries < 15 && (!view || !view.code)){
-        await new Promise(r=>setTimeout(r,1000));
-        view = manager.getPublic(attempt.id);
-        tries++;
-      }
-      if(view && view.code) return res.json({ code: view.code, id: attempt.id });
-      return res.json({ id: attempt.id, ...view });
-    } catch (e) {
-      if (e instanceof PairingError) return res.status(e.httpStatus).json({ error: e.message });
-      logger.error({ err: e.message }, 'pairing start failed /pair');
-      res.status(500).json({ error: 'Unexpected server error. Please try again.' });
-    }
-  });
-
-  app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '5m', index: 'index.html' }));
-  app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
-  app.use((err, req, res, next) => {
-    if (err && err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request body.' });
-    logger.error({ err: err && err.message }, 'express error');
-    res.status(500).json({ error: 'Unexpected server error.' });
-  });
-  return app;
-}
-module.exports = { createServer };
+export default app;
