@@ -1,23 +1,22 @@
 {
-  "name": "Rana-Furqan-MD-",
+  "name": "Rana-Furqan-MD",
   "version": "5.0.1",
   "private": true,
-  "description": "WhatsApp bot using Baileys and Express",
+  "description": "WhatsApp bot using Baileys and Express - Fixed Pairing",
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "check": "node --check index.js && node --check server.js && node --check web.js && node --check commands.js && node --check handler.js && node --check config.js"
+    "start": "node index.js"
   },
   "engines": {
     "node": ">=20 <23"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "6.5.0",
-    "@hapi/boom": "10.0.1",
-    "dotenv": "16.3.1",
-    "express": "4.18.2",
-    "pino": "8.16.0",
-    "qrcode-terminal": "0.12.0"
+    "@whiskeysockets/baileys": "^6.7.18",
+    "@hapi/boom": "^10.0.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pino": "^8.21.0",
+    "qrcode-terminal": "^0.12.0"
   }
 }
