@@ -1,108 +1,77 @@
-import fs from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import config from '../config.js';
+export default {
+  name: "menu",
+  aliases: ["allmenu","help","list"],
+  async execute(sock, m, args, { prefix, config }){
+    const jid = m.key.remoteJid;
+    const fs = await import('fs');
+    const path = await import('path');
+    const dir = path.join(process.cwd(),'commands');
+    let files = [];
+    try{ files = fs.readdirSync(dir).filter(f=>f.endsWith('.js')).map(f=>f.replace('.js','')); }catch{}
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+    // CATEGORY DEFINITION
+    const categories = {
+      "🤖 AI MENU": ["ai","gpt","gpt4","gemini","meta","blackbox","bard","imagine","dalle","llama"],
+      "👑 OWNER MENU": ["owner","sudo","ban","unban","block","unblock","jid","broadcast","bc","bcall","restart","update","mode","public","private","self","bot","setpp","setbio"],
+      "👥 GROUP MENU": ["group","ginfo","groupinfo","gc","kick","add","promote","demote","tagall","hidetag","invite","link","revoke","mute","unmute","lock","unlock","approve","reject","members","admins","groupid"],
+      "📥 DOWNLOADER MENU": ["play","song","video","yt","yta","ytv","yts","fb","tiktok","tt","insta","ig","mediafire","gdrive","apk","apkdl","play2"],
+      "🎉 FUN MENU": ["joke","fact","quote","meme","truth","dare","ship","love","hug","kiss","how","8ball","dice","flip","coin","compliment","insult","roast","emojimix"],
+      "🔧 TOOL MENU": ["sticker","s","toimg","toaudio","tovideo","url","translate","trt","calc","base64","binary","unbinary","upper","lower","reverse","repeat","choose","count"],
+      "🔍 SEARCH MENU": ["google","wiki","lyrics","wallpaper","pinterest","image","ytsearch","weather","gimage"],
+      "⚙️ SETTINGS MENU": ["antidelete","autostatus","autoview","autolike","autobio","welcome","goodbye","antilink","antispam","autovideo","autoreact","keepalive"],
+      "💎 MAIN MENU": ["alive","ping","speed","runtime","uptime","status","botinfo","botinfo2","id","ping2"]
+    };
 
-const menu = async (sock, m) => {
-  try {
-    const cmdDir = join(__dirname, '../commands');
-    let allCommands = [];
+    // Full form - Bade lafzon mein
+    const toFull = (c) => c.toUpperCase();
 
-    if (fs.existsSync(cmdDir)) {
-      const files = fs.readdirSync(cmdDir).filter(f => f.endsWith('.js'));
-      
-      for (let file of files) {
-        try {
-          const filePath = join(cmdDir, file);
-          const data = fs.readFileSync(filePath, 'utf8');
-          
-          // 3 tarah se command name nikalo
-          let cmds = [];
-          
-          // Style 1: .command = ['menu','help']
-          let m1 = data.match(/\.command\s*=\s*\[([^\]]+)\]/);
-          if (m1) {
-            cmds = m1[1].split(',').map(s => s.replace(/['"`\s]/g, '')).filter(Boolean);
-          }
-          // Style 2: name: "ping"
-          let m2 = data.match(/name\s*:\s*["']([^"']+)["']/);
-          if (m2) {
-            cmds.push(m2[1]);
-          }
-          // Style 3: alias: ["allmenu","help"]
-          let m3 = data.match(/alias\s*:\s*\[([^\]]+)\]/);
-          if (m3) {
-            let alias = m3[1].split(',').map(s => s.replace(/['"`\s]/g, '')).filter(Boolean);
-            cmds.push(...alias);
-          }
-          
-          // Agar kuch nahi mila to file name ko hi command samjho
-          if (cmds.length === 0) {
-            cmds.push(file.replace('.js', ''));
-          }
-          
-          allCommands.push(...cmds);
-        } catch {}
-      }
+    let caption = `┏━━〔 *RANA FURQAN MD* 〕━━┓\n`;
+    caption += `┃\n`;
+    caption += `┃ 🤖 BOT: RANA FURQAN MD\n`;
+    caption += `┃ 👑 OWNER: Rana Furqan Rajput\n`;
+    caption += `┃ 📞 NUMBER: 923003719761\n`;
+    caption += `┃ ⚙️ MODE: PUBLIC\n`;
+    caption += `┃ 🔥 PREFIX: ${prefix}\n`;
+    caption += `┃ 📊 TOTAL: ${files.length} COMMANDS\n`;
+    caption += `┃\n`;
+    caption += `┗━━━━━━━━━━━━━━┛\n\n`;
+
+    for(let catName in categories){
+      let catCmds = categories[catName].filter(c=>files.includes(c));
+      if(catCmds.length===0) continue;
+      caption += `┏━━〔 ${catName} 〕━━\n`;
+      catCmds.forEach(c=>{
+        caption += `┃ ✦ ${prefix}${toFull(c)}\n`;
+      });
+      caption += `┗━━━━━━━━━━━\n\n`;
     }
 
-    // Duplicate hatao, sort karo
-    allCommands = [...new Set(allCommands)].sort();
-    const total = allCommands.length;
+    // Bachi hui commands jo kisi category mein nahi
+    let used = Object.values(categories).flat();
+    let remaining = files.filter(f=>!used.includes(f));
+    if(remaining.length>0){
+      caption += `┏━━〔 🌹 EXTRA MENU 〕━━\n`;
+      remaining.forEach(c=>{ caption += `┃ ✦ ${prefix}${toFull(c)}\n`; });
+      caption += `┗━━━━━━━━━━━\n\n`;
+    }
 
-    // List banao
-    let list = allCommands.map(c => `│ ⚡ ${config.prefix}${c}`).join('\n');
+    caption += `━━━━━━━━━━━━━━━\n`;
+    caption += `🌹 *POWERED BY MERI JAAN* 🌹\n`;
+    caption += `━━━━━━━━━━━━━━━`;
 
-    let txt = `╭━━━〔 *${config.botName}* 〕━━━╮
-┃
-┃ 🖼️ *BOT DP:* ${config.botImage}
-┃
-┣━━━ *BOT INFO* ━━━
-┃ 🤖 *Bot:* ${config.botName}
-┃ 👑 *Owner:* ${config.ownerName}
-┃ 📞 *Number:* ${config.ownerNumber}
-┃
-┣━━━ *STATUS* ━━━
-┃ ⚙️ *Mode:* ${config.mode}
-┃ 🔥 *Prefix:* ${config.prefix}
-┃ ⏱️ *Uptime:* ${Math.floor(process.uptime()/3600)}H ${Math.floor((process.uptime()%3600)/60)}M
-┃ 📊 *Total:* ${total} Commands
-┃
-┣━━━ *ALL ${total} COMMANDS* ━━━
-┃
-${list}
-┃
-╰━━━━━━━━━━━━━━━━━━╯
-
-📢 *Channel:* ${config.channelLink}
-👥 *Group:* ${config.groupLink}
-
-> _Type ${config.prefix}help <command> for details_
-> _${config.botName} - Made with ❤️_`;
-
-    await sock.sendMessage(m.key.remoteJid, {
-      image: { url: config.menuImage || config.botImage },
-      caption: txt,
+    // NO RAW LINKS - ONLY VIEW CHANNEL BUTTON
+    await sock.sendMessage(jid, {
+      image: { url: config.menuImage || "https://i.ibb.co/BHfCmfbw/jawadmd.jpg" },
+      caption: caption,
       contextInfo: {
-        externalAdReply: {
-          title: `${config.botName} - ${total} Commands`,
-          body: `Mode: ${config.mode} | Prefix: ${config.prefix} | Owner: ${config.ownerName}`,
-          thumbnailUrl: config.botImage,
-          sourceUrl: config.channelLink,
-          mediaType: 1,
-          renderLargerThumbnail: true
+        isForwarded: true,
+        forwardingScore: 999,
+        forwardedNewsletterMessageInfo: {
+          newsletterJid: "120363318009513250@newsletter",
+          newsletterName: "RANA FURQAN MD",
+          serverMessageId: 1
         }
       }
     }, { quoted: m });
-
-  } catch (e) {
-    console.log("Menu Error:", e);
-    await sock.sendMessage(m.key.remoteJid, { text: `❌ Menu Error: ${e.message}` }, { quoted: m });
   }
-};
-
-export default menu;
-menu.command = ['menu', 'allmenu', 'help', 'commands'];
+}
