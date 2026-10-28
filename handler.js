@@ -1,15 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 export let settings;
 let mod = null;
 const messageCache = new Map();
 const MAX_CACHE = 500;
-
-// ✅ AUTO SYSTEM - Extra commands ke liye
 export const autoCommands = new Map();
 export const autoAliases = new Map();
 
@@ -19,8 +15,7 @@ async function load(force = false) {
       mod = await import('./commands.js' + (force ? '?v=' + Date.now() : ''));
       settings = mod.settings;
     }
-  } catch (e) {
-    console.log('[AUTO-FIX] commands.js missing, auto fixed');
+  } catch {
     mod = { settings: {}, handleMessage: async () => {}, totalCommands: () => 0 };
   }
   return mod;
@@ -63,7 +58,7 @@ async function sendViewOnceToOwner(sock, message) {
     if (content.imageMessage) await sock.sendMessage(owner, { image: buffer, caption, mimetype: content.imageMessage.mimetype || 'image/jpeg' });
     else if (content.videoMessage) await sock.sendMessage(owner, { video: buffer, caption, mimetype: content.videoMessage.mimetype || 'video/mp4' });
     else if (content.audioMessage) await sock.sendMessage(owner, { audio: buffer, mimetype: content.audioMessage.mimetype || 'audio/ogg; codecs=opus', ptt: Boolean(content.audioMessage.ptt) });
-  } catch (error) { console.error('View Once handler error:', error?.message || error); }
+  } catch {}
 }
 
 function cacheMessage(message) {
@@ -99,10 +94,9 @@ async function restoreDeletedMessage(sock, protocolMessage) {
     else if (mediaType === 'audioMessage') await sock.sendMessage(owner, { audio: buffer, mimetype: media.mimetype || 'audio/ogg; codecs=opus', ptt: Boolean(media.ptt) });
     else if (mediaType === 'documentMessage') await sock.sendMessage(owner, { document: buffer, mimetype: media.mimetype || 'application/octet-stream', fileName: media.fileName || 'deleted-file' });
     else await sock.sendMessage(owner, { sticker: buffer });
-  } catch (error) { console.error('Anti-Delete handler error:', error?.message || error); }
+  } catch {}
 }
 
-// ✅ AUTO SYSTEM - KAHIN BHI FILE HO AUTO CONNECT
 async function loadAutoCommands() {
   autoCommands.clear(); autoAliases.clear();
   const folders = ['./commands', './plugins', './Commands', './Plugins'];
@@ -121,7 +115,7 @@ async function loadAutoCommands() {
         autoCommands.set(cmd.name.toLowerCase(), cmd);
         if (cmd.aliases) for (const a of cmd.aliases) autoAliases.set(a.toLowerCase(), cmd.name.toLowerCase());
         count++;
-        console.log(`[AUTO-CONNECT] ✅ ${cmd.name} from ${folderName}/${file}`);
+        console.log(`[AUTO-CONNECT] ${cmd.name} from ${folderName}/${file}`);
       } catch (e) {
         console.log(`[AUTO-FIX] Skip ${file}: ${e.message}`);
       }
@@ -136,10 +130,9 @@ export async function loadCommands() {
     const autoCount = await loadAutoCommands();
     const total = typeof router.totalCommands === 'function' ? router.totalCommands() : 0;
     const finalTotal = total + autoCount;
-    console.log(`COMMANDS LOADED: ${total} (main) + ${autoCount} (auto) = ${finalTotal} TOTAL - ALL WORKING`);
+    console.log(`COMMANDS LOADED: ${total} + ${autoCount} = ${finalTotal}`);
     return finalTotal;
-  } catch (error) {
-    console.error('Load Error:', error?.message || error);
+  } catch {
     await loadAutoCommands();
     return autoCommands.size;
   }
@@ -155,8 +148,6 @@ export async function onMessage(sock, upsert) {
     if (protocol?.type === 0 && protocol?.key) { await restoreDeletedMessage(sock, protocol); continue; }
     cacheMessage(message);
     await sendViewOnceToOwner(sock, message);
-
-    // AUTO COMMAND CHECK
     try {
       const text = message.message.conversation || message.message.extendedTextMessage?.text || "";
       if (text && /^[.!#]/.test(text)) {
@@ -164,14 +155,10 @@ export async function onMessage(sock, upsert) {
         const cmdName = args.shift()?.toLowerCase();
         const actual = autoAliases.get(cmdName) || cmdName;
         const autoCmd = autoCommands.get(actual);
-        if (autoCmd) {
-          await autoCmd.execute(sock, message, args, { commands: autoCommands });
-          continue; // auto command mil gaya to main wala skip
-        }
+        if (autoCmd) { await autoCmd.execute(sock, message, args, { commands: autoCommands }); continue; }
       }
     } catch {}
-
-    try { await router.handleMessage(sock, message); } catch (error) { console.error('onMessage error:', error?.message || error); }
+    try { await router.handleMessage(sock, message); } catch {}
   }
 }
 
