@@ -16,50 +16,69 @@ let sock=null,status='DISCONNECTED',pairCode=null,pairTime=0,lastNumber='';
 app.use(express.urlencoded({extended:true})); app.use(express.json());
 function cleanAuth(){try{if(fs.existsSync(AUTH_DIR))fs.rmSync(AUTH_DIR,{recursive:true,force:true})}catch{}try{fs.mkdirSync(AUTH_DIR,{recursive:true})}catch{}}
 function normNum(v){let n=String(v||'').replace(/\D/g,'');if(n.startsWith('0'))n='92'+n.slice(1);return n;}
-function html(){const valid=pairCode&&Date.now()-pairTime<65000;return`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>RANA FURQAN MD</title><style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;font-family:Arial;color:#fff;padding:15px}.c{width:100%;max-width:420px;background:#111;border:2px solid #f00;border-radius:22px;padding:25px;text-align:center}input{width:100%;padding:14px;border-radius:12px;border:2px solid #f00;background:#000;color:#fff;font-size:18px;text-align:center;box-sizing:border-box;margin-top:12px}button{width:100%;padding:14px;border-radius:12px;border:0;background:red;color:#fff;font-weight:bold;margin-top:12px}.code{margin-top:18px;background:#000;border:2px dashed #0f0;border-radius:15px;padding:16px}.code h1{font-family:monospace;font-size:34px;letter-spacing:5px;color:#0f0;margin:10px 0}.st{padding:7px 16px;border-radius:20px;font-weight:bold;display:inline-block;font-size:12px;margin:8px}.CONNECTED{background:#0f0;color:#000}.CONNECTING{background:#ff0;color:#000}.DISCONNECTED{background:#f00}</style></head><body><div class="c"><h2>RANA FURQAN MD</h2><div class="st ${status}">${status}</div>${status==='CONNECTED'?`<div style="color:#0f0"><h3>CONNECTED - 94 CMDS READY</h3></div>`:`<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="923003719761" required><button>GET CODE</button></form>${valid?`<div class="code"><h1>${pairCode}</h1></div>`:''}`}</div></body></html>`}
+
+// ✅ YE FUNCTION KHUD CONFIG SE DP DHONDEGA - CHAHE NAAM KUCH BHI HO
+function getConfigDP(){
+  try{
+    // 1. Common naam check
+    const keys = ['botImage','botPic','botImg','botDP','thumbnail','thumb','menuImage','ownerPic','ownerImg','pp','profilePic','logo','image','botThumbnail'];
+    for(const k of keys){
+      if(config[k] && typeof config[k]==='string' && config[k].startsWith('http')) return config[k];
+    }
+    // 2. Config ke andar koi bhi http wali image dhoondo
+    for(const val of Object.values(config)){
+      if(typeof val==='string' && val.startsWith('http') && (val.includes('.jpg')||val.includes('.png')||val.includes('.jpeg')||val.includes('ibb.co')||val.includes('imgur'))){
+        return val;
+      }
+      // Agar object hai to uske andar bhi check
+      if(typeof val==='object' && val!==null){
+        for(const v2 of Object.values(val)){
+          if(typeof v2==='string' && v2.startsWith('http') && v2.includes('http')) return v2;
+        }
+      }
+    }
+  }catch{}
+  return "https://i.ibb.co/1p9q3bL8/rana-furqan.jpg";
+}
+
+function html(){
+  const valid=pairCode&&Date.now()-pairTime<65000;
+  const DP = getConfigDP();
+  const botName = config.botName || config.botname || config.BOT_NAME || "RANA FURQAN MD";
+  return`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>${botName}</title><style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;font-family:Arial;color:#fff;padding:15px}.c{width:100%;max-width:420px;background:#111;border:2px solid #f00;border-radius:22px;padding:25px;text-align:center}.dp{width:110px;height:110px;border-radius:50%;border:3px solid #f00;object-fit:cover;margin-bottom:10px;box-shadow:0 0 20px #f00}input{width:100%;padding:14px;border-radius:12px;border:2px solid #f00;background:#000;color:#fff;font-size:18px;text-align:center;box-sizing:border-box;margin-top:12px}button{width:100%;padding:14px;border-radius:12px;border:0;background:red;color:#fff;font-weight:bold;margin-top:12px}.code{margin-top:18px;background:#000;border:2px dashed #0f0;border-radius:15px;padding:16px}.code h1{font-family:monospace;font-size:34px;letter-spacing:5px;color:#0f0;margin:10px 0}.st{padding:7px 16px;border-radius:20px;font-weight:bold;display:inline-block;font-size:12px;margin:8px}.CONNECTED{background:#0f0;color:#000}.CONNECTING{background:#ff0;color:#000}.DISCONNECTED{background:#f00}</style></head><body><div class="c"><img class="dp" src="${DP}" alt="DP"><h2>${botName}</h2><p style="color:#ff0040;font-size:13px;margin:0">🌹 Powered by Meri JAAN 🌹</p><div class="st ${status}">${status}</div>${status==='CONNECTED'?`<div style="color:#0f0"><h3>✅ CONNECTED</h3><p>Auto System Ready</p><img src="${DP}" style="width:70px;height:70px;border-radius:50%;margin-top:10px;border:2px solid #0f0"></div>`:`<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="923003719761" required><button>GET CODE</button></form>${valid?`<div class="code"><h1>${pairCode}</h1><p style="color:#0f0;font-size:11px">WhatsApp > Linked Devices > Link with Phone Number</p></div>`:''}`}</div></body></html>`
+}
 app.get('/',(req,res)=>res.send(html()));
 
 async function UNIVERSAL_RUN(cmdName, wa, m, args, prefix){
   const dir = path.join(__dirname,'commands');
-  const files = fs.readdirSync(dir);
-  const target = files.find(f=>f.toLowerCase()===`${cmdName.toLowerCase()}.js`);
+  if(!fs.existsSync(dir)) return false;
+  const files = fs.readdirSync(dir).filter(f=>f.endsWith('.js'));
+  let target = files.find(f=>f.toLowerCase()===`${cmdName.toLowerCase()}.js`);
+  if(!target){
+    for(const file of files){
+      try{
+        const fullPath = path.join(dir,file);
+        const mod = await import(`file://${fullPath}?t=${Date.now()}`);
+        let handler = mod.default || mod;
+        let aliases = handler.aliases || [];
+        if(typeof aliases === 'string') aliases = [aliases];
+        if(aliases.map(a=>String(a).toLowerCase()).includes(cmdName.toLowerCase())){target=file;break;}
+      }catch{}
+    }
+  }
   if(!target) return false;
   const fullPath = path.join(dir,target);
   try{
     const mod = await import(`file://${fullPath}?t=${Date.now()}`);
-    // Sab tarah ke exports check karo
     let handler = mod.default || mod;
-    
-    // Case 1: export default { execute }
-    if(handler.execute) {
-      await handler.execute(wa, m, args, { prefix, config });
-      return true;
-    }
-    // Case 2: export default function
-    if(typeof handler === 'function'){
-      await handler(wa, m, args, { conn: wa, prefix, config });
-      return true;
-    }
-    // Case 3: handler.handler or handler.run
-    if(handler.handler && typeof handler.handler === 'function'){
-      await handler.handler(m, { conn: wa, args, prefix, config });
-      return true;
-    }
-    if(handler.run && typeof handler.run === 'function'){
-      await handler.run(wa, m, args);
-      return true;
-    }
-    // Case 4: command property
-    if(mod.command || mod.default?.command){
-      const fn = mod.default?.execute || mod.default || mod.execute;
-      if(fn) { await fn(wa, m, args); return true; }
-    }
-    
-    console.log(`❌ No handler found in ${target}`);
+    if(handler.execute){await handler.execute(wa,m,args,{prefix,config});return true;}
+    if(typeof handler==='function'){await handler(wa,m,args,{conn:wa,prefix,config});return true;}
+    if(handler.handler){await handler.handler(m,{conn:wa,args,prefix,config});return true;}
+    if(handler.run){await handler.run(wa,m,args);return true;}
     return false;
   }catch(e){
     console.log(`❌ ERROR in ${target}:`, e.message);
-    await wa.sendMessage(m.key.remoteJid, { text: `❌ Error in .${cmdName}: ${e.message}` }, { quoted: m });
+    await wa.sendMessage(m.key.remoteJid,{text:`❌ Error in .${cmdName}: ${e.message}\n\n🌹 Powered by Meri JAAN`},{quoted:m});
     return true;
   }
 }
@@ -91,9 +110,28 @@ async function startBot(num){
         await UNIVERSAL_RUN(cmd, wa, m, args, prefix);
       }catch(e){console.log("upsert error",e)}
     });
-    wa.ev.on('connection.update',(u)=>{
+    wa.ev.on('connection.update',async (u)=>{
       const {connection,lastDisconnect}=u;
-      if(connection==='open'){status='CONNECTED';pairCode=null;console.log("✅ CONNECTED - ALL 94 READY");}
+      if(connection==='open'){
+        status='CONNECTED';pairCode=null;
+        console.log("✅ CONNECTED - Auto DP: "+getConfigDP());
+        setTimeout(async ()=>{
+          try{
+            const DP = getConfigDP();
+            await wa.sendMessage(wa.user.id, { 
+              image: { url: DP },
+              caption: `╭─🌹─ *RANA FURQAN MD* ─🌹─╮
+│ ✅ *BOT CONNECTED!*
+│ 🤖 ONLINE - Auto System
+│ ⚡ 94+ Commands Ready
+│ 👑 Powered by Meri JAAN
+╰─🌹──────────────🌹─╯
+
+*.menu* likho commands dekho!`
+            });
+          }catch(e){console.log("msg error",e.message)}
+        }, 3000);
+      }
       else if(connection==='close'){status='DISCONNECTED';sock=null;if(lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut)setTimeout(()=>startBot(),3000);}
       else if(connection==='connecting')status='CONNECTING';
     });
@@ -101,5 +139,5 @@ async function startBot(num){
   }catch(e){status='DISCONNECTED';console.log("start err",e)}
 }
 app.post('/pair', async (req,res)=>{const n=normNum(req.body?.num);if(!n||n.length<11)return res.send('Invalid <a href="/">Back</a>');lastNumber=n;pairCode=null;status='CONNECTING';await startBot(n);for(let i=0;i<10;i++){if(pairCode)break;await new Promise(r=>setTimeout(r,1000));}res.redirect('/');});
-app.listen(PORT,()=>console.log('Running '+PORT));
+app.listen(PORT,()=>console.log('Running '+PORT+' - Auto DP from Config 🌹'));
 if(fs.existsSync(AUTH_DIR)&&fs.readdirSync(AUTH_DIR).length>0)startBot();
