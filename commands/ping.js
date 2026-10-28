@@ -2,8 +2,8 @@ import config from '../config.js';
 
 const ping = async (sock, m) => {
   const start = Date.now();
-  const end = Date.now();
-  const speed = end - start;
+  await new Promise(r=>setTimeout(r, 300));
+  const speed = Date.now() - start;
 
   const pingText = `╭─🌹─ *PONG!* ─🌹─╮
 │
@@ -22,13 +22,6 @@ const ping = async (sock, m) => {
     image: { url: config.botImage },
     caption: pingText,
     contextInfo: {
-      forwardingScore: 999,
-      isForwarded: true,
-      forwardedNewsletterMessageInfo: {
-        newsletterJid: '120363319314627663@newsletter',
-        newsletterName: 'RANA FURQAN MD - MERI JAAN',
-        serverMessageId: 1
-      },
       externalAdReply: {
         title: '🌹 RANA FURQAN MD 🌹',
         body: '📢 Channel View Karo - Meri Jaan',
@@ -44,4 +37,4 @@ const ping = async (sock, m) => {
 
 export default ping;
 ping.command = ['ping', 'speed', 'pong', 'ping2'];
-ping.execute = ping; // Ye line important hai - Is se .ping working hoga
+ping.execute = ping;
