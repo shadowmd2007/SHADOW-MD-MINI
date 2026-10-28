@@ -40,8 +40,8 @@ function normNum(v) {
 
 function html() {
   const valid = pairCode && Date.now()-pairTime < 65000;
-  const dp = config.botImage || "https://i.ibb.co/3pX0y7d/rana-furqan.jpg";
-  const channel = config.channelLink || "https://whatsapp.com/channel/0029VaZh2Nn0LKZ6cM1r4k2z";
+  const dp = config.botImage;
+  const channel = config.channelLink;
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>${config.botName}</title>
   <style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;font-family:Arial;color:#fff;padding:15px}
   .c{width:100%;max-width:420px;background:#111;border:2px solid #f00;border-radius:22px;padding:25px;text-align:center}
@@ -55,7 +55,7 @@ function html() {
   .channel-btn{display:inline-block;margin-top:12px;background:#25D366;color:#fff;padding:10px 22px;border-radius:25px;text-decoration:none;font-weight:bold}
   </style></head><body><div class="c">
   <img class="dp" src="${dp}"><h2>${config.botName}</h2><div class="st ${status}">${status}</div>
-  ${status==='CONNECTED'?`<div style="color:#0f0"><h3>✅ LOGIN SUCCESSFUL</h3><p>All Commands Working!</p></div><a class="channel-btn" href="${channel}" target="_blank">📢 VIEW CHANNEL</a>`:`<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="923003719761" required><button>GET PAIRING CODE</button></form>${valid?`<div class="code"><div style="color:#ff0;font-size:12px">✅ CODE READY</div><h1>${pairCode}</h1><div style="color:#aaa;font-size:12px">${lastNumber}</div><div id="t" style="color:#ff0">60s</div></div><script>let s=60;setInterval(()=>{s--;let e=document.getElementById('t');if(e)e.innerText=s+'s';if(s<=0)location.reload()},1000)</script>`:''}<div style="margin-top:15px"><a class="channel-btn" href="${channel}" target="_blank">📢 VIEW CHANNEL</a></div>`}
+  ${status==='CONNECTED'?`<div style="color:#0f0"><h3>✅ LOGIN SUCCESSFUL</h3><p>All Commands Working!</p></div><a class="channel-btn" href="${channel}" target="_blank">📢 VIEW CHANNEL</a>`:`<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="923003719761" required><button>GET PAIRING CODE</button></form>${valid?`<div class="code"><div style="color:#ff0;font-size:12px">✅ CODE READY</div><h1>${pairCode}</h1><div style="color:#aaa;font-size:12px">${lastNumber}</div></div>`:''}<div style="margin-top:15px"><a class="channel-btn" href="${channel}" target="_blank">📢 VIEW CHANNEL</a></div>`}
   </div></body></html>`;
 }
 
