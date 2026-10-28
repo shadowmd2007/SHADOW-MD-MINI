@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pino from 'pino';
 import { fileURLToPath } from 'node:url';
-import makeWASocket, { useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion, DisconnectReason } from '@whiskeysockets/baileys';
+import baileysPkg from '@whiskeysockets/baileys';
+const { default: makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion, DisconnectReason } = baileysPkg;
 import { config } from './config.js';
 import { onMessage, loadCommands } from './handler.js';
 
@@ -31,7 +32,7 @@ function normalizeNumber(v) {
 }
 
 function getCommandsCount() {
-  try { return fs.readdirSync(path.join(__dirname, './commands')).filter(f => f.endsWith('.js') && f !== 'features.js').length; } catch { return 0; }
+  try { return fs.readdirSync(path.join(__dirname, './commands')).filter(f => f.endsWith('.js') && f !== 'features.js').length; } catch { return 4; }
 }
 
 function page() {
@@ -107,12 +108,8 @@ async function connectWhatsApp(number = '') {
   if (starting) return;
   starting = true;
   try {
-    // FORCE CLEAN AUTH IF USER REQUESTED NEW CODE
     if (number && fs.existsSync(AUTH_DIR)) {
-      const age = Date.now() - lastPairTime;
-      if (status === 'DISCONNECTED' || age < 60000) {
-        try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
-      }
+      try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
     }
     fs.mkdirSync(AUTH_DIR, { recursive: true });
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -151,7 +148,7 @@ async function connectWhatsApp(number = '') {
           console.log('✅ CODE GENERATED:', pairCode);
         } catch (e) {
           console.log('Pair error:', e.message);
-          pairCode = 'TRY AGAIN IN 30 SEC';
+          pairCode = 'TRY AGAIN';
           pairCodeTime = Date.now();
         }
       }
@@ -166,7 +163,7 @@ async function connectWhatsApp(number = '') {
 app.post('/pair', async (req, res) => {
   const num = normalizeNumber(req.body?.num);
   if (!num || num.length < 10) return res.status(400).send('Valid number required');
-  if (Date.now() - lastPairTime < 25000) return res.redirect('/');
+  if (Date.now() - lastPairTime < 20000) return res.redirect('/');
   lastNumber = num;
   lastPairTime = Date.now();
   pairCode = null; pairCodeTime = null; status = 'CONNECTING';
@@ -174,7 +171,7 @@ app.post('/pair', async (req, res) => {
   res.redirect('/');
 });
 
-app.listen(PORT, () => console.log(`🔥 DHAMAKA ON ${PORT} - ${getCommandsCount()} CMDS`));
+app.listen(PORT, () => console.log(`🔥 DHAMAKA ON ${PORT} - ${getCommandsCount()} CMDS - FIXED makeWASocket`));
 try {
   await loadCommands().catch(() => {});
   if (fs.existsSync(AUTH_DIR) && fs.readdirSync(AUTH_DIR).length > 0) await connectWhatsApp();
