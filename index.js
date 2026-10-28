@@ -1,4 +1,3 @@
-
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -34,20 +33,18 @@ app.use(express.json({ limit: '1mb' }));
 
 function normalizeNumber(value) {
   let number = String(value || '').replace(/\D/g, '');
-
   if (number.startsWith('0')) {
     number = '92' + number.slice(1);
   }
-
   return number;
 }
 
 function page() {
   const connected = status === 'CONNECTED';
-
   const shownCode = pairCode
     ? `<div class="code">${pairCode}</div>
-       <p>WhatsApp → Linked Devices → Link with phone number</p>`
+       <p>WhatsApp → Linked Devices → Link with phone number</p>
+       <small style="color:#00ff9d">Code 30 sec ke liye valid hai</small>`
     : '';
 
   return `<!doctype html>
@@ -57,43 +54,15 @@ function page() {
 <title>${config.botName || 'WhatsApp Bot'}</title>
 <style>
 *{box-sizing:border-box}
-body{
-  background:#090909;color:#fff;font-family:Arial,sans-serif;
-  display:flex;justify-content:center;align-items:center;
-  min-height:100vh;margin:0;padding:18px
-}
-.card{
-  width:100%;max-width:390px;text-align:center;
-  background:#151515;border:1px solid #e60040;
-  border-radius:20px;padding:24px;
-  box-shadow:0 0 20px #e6004033
-}
-.dp{
-  width:100px;height:100px;border-radius:50%;
-  object-fit:cover;border:2px solid #e60040
-}
-input,button{
-  width:100%;padding:13px;border-radius:10px;margin-top:12px
-}
-input{
-  background:#222;color:white;border:1px solid #e60040;
-  text-align:center
-}
-button{
-  border:0;background:#e60040;color:white;font-weight:bold;
-  cursor:pointer
-}
-.code{
-  font-size:32px;letter-spacing:4px;color:#00ff9d;
-  padding:14px;background:#050505;border:1px dashed #00ff9d;
-  border-radius:10px;margin-top:16px
-}
-.status{
-  color:${connected ? '#00ff88' : '#ff5577'};
-  font-weight:bold
-}
-a{color:#ddd}
-small{color:#888}
+body{background:#090909;color:#fff;font-family:Arial,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:18px}
+.card{width:100%;max-width:390px;text-align:center;background:#151515;border:1px solid #e60040;border-radius:20px;padding:24px;box-shadow:0 0 20px #e6004033}
+.dp{width:100px;height:100px;border-radius:50%;object-fit:cover;border:2px solid #e60040}
+input,button{width:100%;padding:13px;border-radius:10px;margin-top:12px}
+input{background:#222;color:white;border:1px solid #e60040;text-align:center}
+button{border:0;background:#e60040;color:white;font-weight:bold;cursor:pointer}
+.code{font-size:32px;letter-spacing:4px;color:#00ff9d;padding:14px;background:#050505;border:1px dashed #00ff9d;border-radius:10px;margin-top:16px}
+.status{color:${connected ? '#00ff88' : '#ff5577'};font-weight:bold}
+a{color:#ddd}small{color:#888}
 </style>
 </head>
 <body>
@@ -102,16 +71,7 @@ small{color:#888}
 <h2>${config.botName || 'WhatsApp Bot'}</h2>
 <p>${config.ownerName || ''}</p>
 <p class="status">${status}</p>
-${
-  connected
-    ? '<h3>WhatsApp connected</h3>'
-    : `<form action="/pair" method="post">
-       <input name="num" inputmode="numeric"
-       placeholder="92300XXXXXXXX"
-       value="${lastNumber || config.ownerNumber || ''}" required>
-       <button type="submit">GET PAIRING CODE</button>
-       </form>${shownCode}`
-}
+${connected ? '<h3>✅ WhatsApp connected</h3>' : `<form action="/pair" method="post"><input name="num" inputmode="numeric" placeholder="92300XXXXXXXX" value="${lastNumber || config.ownerNumber || ''}" required><button type="submit">GET PAIRING CODE</button></form>${shownCode}`}
 <p><small>v${config.version || '1.0.0'}</small></p>
 <p><a href="/health">Health status</a></p>
 </main>
@@ -119,230 +79,128 @@ ${
 </html>`;
 }
 
-app.get('/', (_req, res) => {
-  res.type('html').send(page());
-});
-
-app.get('/health', (_req, res) => {
-  res.json({
-    ok: true,
-    status,
-    connected: status === 'CONNECTED'
-  });
-});
+app.get('/', (_req, res) => res.type('html').send(page()));
+app.get('/health', (_req, res) => res.json({ ok: true, status, connected: status === 'CONNECTED', pairCode }));
 
 async function closeSocket() {
-  const old = sock;
-  sock = null;
-
+  const old = sock; sock = null;
   if (old) {
-    try {
-      old.ev.removeAllListeners('connection.update');
-    } catch {}
-
-    try {
-      old.ev.removeAllListeners('messages.upsert');
-    } catch {}
-
-    try {
-      old.end(undefined);
-    } catch {}
+    try { old.ev.removeAllListeners('connection.update'); } catch {}
+    try { old.ev.removeAllListeners('messages.upsert'); } catch {}
+    try { old.end(undefined); } catch {}
   }
 }
 
 async function connectWhatsApp(number = '') {
   if (starting) return;
-
   starting = true;
   clearTimeout(reconnectTimer);
 
   try {
     fs.mkdirSync(AUTH_DIR, { recursive: true });
-
-    const { state, saveCreds } =
-      await useMultiFileAuthState(AUTH_DIR);
-
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
     const { version } = await fetchLatestBaileysVersion();
 
     const current = makeWASocket({
-      version,
-      logger,
-      printQRInTerminal: false,
-
-      auth: {
-        creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, logger)
-      },
-
-      browser: [
-        config.botName || 'SHADOW MD',
-        'Chrome',
-        '1.0.0'
-      ],
-
+      version, logger, printQRInTerminal: false,
+      auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
+      browser: [config.botName || 'SHADOW MD', 'Chrome', '1.0.0'],
       markOnlineOnConnect: true,
       syncFullHistory: false,
       connectTimeoutMs: 60000,
-      defaultQueryTimeoutMs: 60000
+      defaultQueryTimeoutMs: 0,
+      keepAliveIntervalMs: 10000,
     });
 
     sock = current;
-
     current.ev.on('creds.update', saveCreds);
 
     current.ev.on('messages.upsert', async (upsert) => {
       if (sock !== current) return;
+      try { await onMessage(current, upsert); } catch (e) { console.error('Message handler failed:', e?.message); }
+    });
 
-      try {
-        await onMessage(current, upsert);
-      } catch (error) {
-        console.error(
-          'Message handler failed:',
-          error?.message || error
-        );
+    current.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (sock !== current) return;
+      if (connection === 'open') {
+        status = 'CONNECTED'; pairCode = null;
+        console.log(`${config.botName || 'Bot'} connected to WhatsApp.`);
+      } else if (connection === 'connecting') {
+        status = 'CONNECTING';
+      } else if (connection === 'close') {
+        status = 'DISCONNECTED';
+        const code = lastDisconnect?.error?.output?.statusCode;
+        console.error('WhatsApp connection closed; status code:', code ?? 'unknown');
+        sock = null;
+        if (code !== DisconnectReason.loggedOut) {
+          reconnectTimer = setTimeout(() => connectWhatsApp(), 3000);
+        }
       }
     });
 
-    current.ev.on(
-      'connection.update',
-      ({ connection, lastDisconnect }) => {
-        if (sock !== current) return;
-
-        if (connection === 'open') {
-          status = 'CONNECTED';
-          pairCode = null;
-
-          console.log(
-            `${config.botName || 'Bot'} connected to WhatsApp.`
-          );
-
-        } else if (connection === 'connecting') {
-          status = 'CONNECTING';
-
-        } else if (connection === 'close') {
-          status = 'DISCONNECTED';
-
-          const code =
-            lastDisconnect?.error?.output?.statusCode;
-
-          console.error(
-            'WhatsApp connection closed; status code:',
-            code ?? 'unknown'
-          );
-
-          sock = null;
-
-          if (code !== DisconnectReason.loggedOut) {
-            reconnectTimer = setTimeout(() => {
-              connectWhatsApp();
-            }, 3000);
-          } else {
-            console.error(
-              'WhatsApp logged out. Re-pair only if you intend to link again.'
-            );
-          }
-        }
-      }
-    );
-
-    // Request a pairing code only for an unregistered session.
+    // AUTO FIX PAIRING SYSTEM - Yahi tumhara main fix hai
     if (number && !state.creds.registered) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
+      console.log(`[PAIR] Waiting for socket to be ready for ${number}...`);
+      // 5 sec wait taake socket ready ho jaye
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
       if (sock === current && !state.creds.registered) {
-        const rawCode =
-          await current.requestPairingCode(number);
-
-        pairCode =
-          rawCode.match(/.{1,4}/g)?.join('-') || rawCode;
+        try {
+          console.log(`[PAIR] Requesting code for ${number}...`);
+          let rawCode = await current.requestPairingCode(number);
+          rawCode = rawCode?.replace(/[^A-Z0-9]/gi, '').toUpperCase() || rawCode;
+          pairCode = rawCode.match(/.{1,4}/g)?.join('-') || rawCode;
+          console.log(`[PAIR] ✅ Code Generated: ${pairCode}`);
+        } catch (e) {
+          console.error('[PAIR] Failed:', e?.message || e);
+          pairCode = `ERROR: ${e?.message?.slice(0, 50) || 'Try again'}`;
+        }
       }
     }
 
-    // Load or refresh commands from handler.js.
-    await loadCommands();
+    try { await loadCommands(); } catch (e) { console.log('[AUTO-FIX] loadCommands failed, but bot will run:', e.message); }
 
   } catch (error) {
     status = 'DISCONNECTED';
-
-    console.error(
-      'WhatsApp startup/pairing failed:',
-      error?.stack || error?.message || error
-    );
-
-    if (number) {
-      pairCode = 'PAIR ERROR';
-    }
-
+    console.error('WhatsApp startup/pairing failed:', error?.stack || error?.message);
+    if (number) pairCode = `PAIR RETRY: ${error?.message?.slice(0, 30)}`;
   } finally {
     starting = false;
   }
 }
 
 app.post('/pair', async (req, res) => {
-  const number = normalizeNumber(
-    req.body?.num || req.body?.number
-  );
-
+  const number = normalizeNumber(req.body?.num || req.body?.number);
   if (!number || number.length < 10) {
-    return res.status(400).send(
-      'Valid WhatsApp number required. Enter country code + number.'
-    );
+    return res.status(400).send('Valid WhatsApp number required. Enter country code + number.');
   }
-
   lastNumber = number;
-
-  if (status === 'CONNECTED') {
-    return res.redirect('/');
-  }
-
-  if (sock && status === 'CONNECTING') {
-    return res.status(409).send(
-      'WhatsApp connection is already starting. Wait a few seconds and refresh.'
-    );
-  }
-
-  // Never delete saved authentication/session files here.
+  if (status === 'CONNECTED') return res.redirect('/');
+  
+  pairCode = null; // purana code clear
+  status = 'CONNECTING';
+  
+  // Purana socket band karke naya start
+  await closeSocket();
   await connectWhatsApp(number);
-
+  
   return res.redirect('/');
 });
 
 app.listen(PORT, () => {
-  console.log(
-    `${config.botName || 'WhatsApp bot'} web server listening on port ${PORT}`
-  );
+  console.log(`${config.botName || 'WhatsApp bot'} web server listening on port ${PORT}`);
 });
 
-// Start with the existing saved session when available.
 try {
   await loadCommands();
-
-  if (
-    fs.existsSync(AUTH_DIR) &&
-    fs.readdirSync(AUTH_DIR).length > 0
-  ) {
+  if (fs.existsSync(AUTH_DIR) && fs.readdirSync(AUTH_DIR).length > 0) {
     await connectWhatsApp();
   } else {
-    console.log(
-      'No saved WhatsApp session found. Open the site and request a pairing code.'
-    );
+    console.log('No saved WhatsApp session found. Open the site and request a pairing code.');
   }
-
 } catch (error) {
-  console.error(
-    'Initial startup failed:',
-    error?.stack || error?.message || error
-  );
+  console.error('Initial startup failed:', error?.message);
 }
 
-process.on('SIGINT', async () => {
-  clearTimeout(reconnectTimer);
-  await closeSocket();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  clearTimeout(reconnectTimer);
-  await closeSocket();
-  process.exit(0);
-});
+process.on('SIGINT', async () => { clearTimeout(reconnectTimer); await closeSocket(); process.exit(0); });
+process.on('SIGTERM', async () => { clearTimeout(reconnectTimer); await closeSocket(); process.exit(0); });
