@@ -9,7 +9,6 @@ export default {
     let files = [];
     try{ files = fs.readdirSync(dir).filter(f=>f.endsWith('.js')).map(f=>f.replace('.js','')); }catch{}
 
-    // CATEGORY DEFINITION
     const categories = {
       "🤖 AI MENU": ["ai","gpt","gpt4","gemini","meta","blackbox","bard","imagine","dalle","llama"],
       "👑 OWNER MENU": ["owner","sudo","ban","unban","block","unblock","jid","broadcast","bc","bcall","restart","update","mode","public","private","self","bot","setpp","setbio"],
@@ -19,11 +18,8 @@ export default {
       "🔧 TOOL MENU": ["sticker","s","toimg","toaudio","tovideo","url","translate","trt","calc","base64","binary","unbinary","upper","lower","reverse","repeat","choose","count"],
       "🔍 SEARCH MENU": ["google","wiki","lyrics","wallpaper","pinterest","image","ytsearch","weather","gimage"],
       "⚙️ SETTINGS MENU": ["antidelete","autostatus","autoview","autolike","autobio","welcome","goodbye","antilink","antispam","autovideo","autoreact","keepalive"],
-      "💎 MAIN MENU": ["alive","ping","speed","runtime","uptime","status","botinfo","botinfo2","id","ping2"]
+      "💎 MAIN MENU": ["alive","ping","speed","runtime","uptime","status","botinfo","id","ping2"]
     };
-
-    // Full form - Bade lafzon mein
-    const toFull = (c) => c.toUpperCase();
 
     let caption = `┏━━〔 *RANA FURQAN MD* 〕━━┓\n`;
     caption += `┃\n`;
@@ -36,22 +32,19 @@ export default {
     caption += `┃\n`;
     caption += `┗━━━━━━━━━━━━━━┛\n\n`;
 
-    for(let catName in categories){
-      let catCmds = categories[catName].filter(c=>files.includes(c));
-      if(catCmds.length===0) continue;
-      caption += `┏━━〔 ${catName} 〕━━\n`;
-      catCmds.forEach(c=>{
-        caption += `┃ ✦ ${prefix}${toFull(c)}\n`;
-      });
+    for(let cat in categories){
+      let list = categories[cat].filter(c=>files.includes(c));
+      if(list.length===0) continue;
+      caption += `┏━━〔 ${cat} 〕━━\n`;
+      list.forEach(c=>{ caption += `┃ ✦ ${prefix}${c.toUpperCase()}\n`; });
       caption += `┗━━━━━━━━━━━\n\n`;
     }
 
-    // Bachi hui commands jo kisi category mein nahi
     let used = Object.values(categories).flat();
-    let remaining = files.filter(f=>!used.includes(f));
-    if(remaining.length>0){
+    let rest = files.filter(f=>!used.includes(f));
+    if(rest.length>0){
       caption += `┏━━〔 🌹 EXTRA MENU 〕━━\n`;
-      remaining.forEach(c=>{ caption += `┃ ✦ ${prefix}${toFull(c)}\n`; });
+      rest.forEach(c=>{ caption += `┃ ✦ ${prefix}${c.toUpperCase()}\n`; });
       caption += `┗━━━━━━━━━━━\n\n`;
     }
 
@@ -59,9 +52,9 @@ export default {
     caption += `🌹 *POWERED BY MERI JAAN* 🌹\n`;
     caption += `━━━━━━━━━━━━━━━`;
 
-    // NO RAW LINKS - ONLY VIEW CHANNEL BUTTON
+    // TUMHARA CHANNEL - VIEW CHANNEL BUTTON
     await sock.sendMessage(jid, {
-      image: { url: config.menuImage || "https://i.ibb.co/BHfCmfbw/jawadmd.jpg" },
+      image: { url: config.menuImage || config.botImage },
       caption: caption,
       contextInfo: {
         isForwarded: true,
