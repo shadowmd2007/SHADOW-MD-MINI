@@ -1,99 +1,98 @@
 export const command = {
   name: 'play',
-  aliases: ['song', 'yta', 'ytmp3', 'mp3', 'audio'],
+  aliases: ['song', 'mp3', 'yta', 'ytmp3', 'audio'],
   category: 'DOWNLOADER',
-  description: 'Download song direct audio',
+  description: 'Search and send audio',
   run: async (ctx) => {
-    const query = ctx.args.join(' ');
-    const { sock, jid, m } = ctx;
-    if (!query) return await ctx.reply(`*Example:* ${ctx.prefix}play Pasoori`);
-    try {
-      await sock.sendMessage(jid, { react: { text: '🎧', key: m.key } });
-      await ctx.reply(`🔍 *"${query}"* search...`);
+    const query = ctx.args.join(' ').trim();
 
-      let videoUrl = '', title = query, thumbnail = '', channel = '';
+    if (!query) {
+      return ctx.reply(`🎧 Example: ${ctx.prefix}play Atif Aslam song`);
+    }
+
+    await ctx.reply(`🔎 Searching audio: *${query}*`);
+
+    const searchApis = [
+      `https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`
+    ];
+
+    let videoUrl = '';
+    let title = query;
+
+    for (const api of searchApis) {
       try {
-        const r1 = await fetch(`https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`);
-        if (!r1.ok) throw new Error(`Search API HTTP ${r1.status}`);
-        const j1 = await r1.json();
-        const list = Array.isArray(j1?.result) ? j1.result : Array.isArray(j1?.results) ? j1.results : Array.isArray(j1?.data) ? j1.data : [];
+        const r = await fetch(api, { signal: AbortSignal.timeout(12000) });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const list = Array.isArray(j.result) ? j.result
+          : Array.isArray(j.results) ? j.results
+          : Array.isArray(j.data) ? j.data : [];
+
         const item = list.find(x => x && (x.url || x.videoUrl || x.link));
         if (item) {
           videoUrl = item.url || item.videoUrl || item.link;
           title = item.title || item.name || query;
-          thumbnail = item.thumbnail || item.image || item.thumbnails?.[0]?.url || '';
-          channel = item.author || item.channel || item.uploader || '';
+          break;
         }
       } catch {}
+    }
 
-      if (!videoUrl) return await ctx.reply('❌ Song search failed. Search API ne valid result nahi diya. Baad mein try karein.');
+    if (!videoUrl) {
+      return ctx.reply('❌ Song search API se result nahi mila. Service baad mein try karein.');
+    }
 
-      if (thumbnail) {
-        try {
-          await sock.sendMessage(jid, {
-            image: { url: thumbnail },
-            caption: `*🎧 ${title}*\n*📺 ${channel}*\n\n📥 *Direct audio bhej raha hun...*`
-          }, { quoted: m });
-        } catch {}
+    const downloadApis = [
+      `https://apis.davidcyriltech.my.id/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+      `https://api.vreden.my.id/api/ytmp3?url=${encodeURIComponent(videoUrl)}`
+    ];
+
+    let audioUrl = '';
+
+    function findUrl(v, depth = 0) {
+      if (!v || depth > 5) return '';
+      if (typeof v === 'string') return /^https?:\/\//i.test(v) ? v : '';
+      if (Array.isArray(v)) {
+        for (const x of v) {
+          const found = findUrl(x, depth + 1);
+          if (found) return found;
+        }
+      } else if (typeof v === 'object') {
+        for (const k of ['downloadUrl', 'download_url', 'url', 'download', 'audio', 'link']) {
+          const found = findUrl(v[k], depth + 1);
+          if (found) return found;
+        }
+        for (const val of Object.values(v)) {
+          const found = findUrl(val, depth + 1);
+          if (found) return found;
+        }
       }
+      return '';
+    }
 
-      let audioUrl = '';
-      const apis = [
-        `https://apis.davidcyriltech.my.id/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-        `https://api.vreden.my.id/api/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-        `https://api.ryzendesu.vip/api/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`
-      ];
+    for (const api of downloadApis) {
+      try {
+        const r = await fetch(api, { signal: AbortSignal.timeout(15000) });
+        if (!r.ok) continue;
+        const j = await r.json();
+        audioUrl = findUrl(j);
+        if (audioUrl) break;
+      } catch {}
+    }
 
-      for (const api of apis) {
-        try {
-          const r = await fetch(api);
-          if (!r.ok) continue;
-          const j = await r.json();
-          const findUrl = (v, depth = 0) => {
-            if (!v || depth > 5) return '';
-            if (typeof v === 'string') return /^https?:\/\//i.test(v) ? v : '';
-            if (Array.isArray(v)) {
-              for (const x of v) {
-                const u = findUrl(x, depth + 1);
-                if (u) return u;
-              }
-              return '';
-            }
-            if (typeof v === 'object') {
-              for (const k of ['downloadUrl', 'download_url', 'url', 'download', 'audio', 'link']) {
-                const u = findUrl(v[k], depth + 1);
-                if (u) return u;
-              }
-              for (const val of Object.values(v)) {
-                const u = findUrl(val, depth + 1);
-                if (u) return u;
-              }
-            }
-            return '';
-          };
-          const url = findUrl(j?.result || j?.data || j);
-          if (url) {
-            audioUrl = url;
-            break;
-          }
-        } catch {}
-      }
+    if (!audioUrl) {
+      return ctx.reply('❌ Song mila, lekin audio download service ne link nahi diya.');
+    }
 
-      if (!audioUrl) throw new Error('All APIs failed');
-
-      await sock.sendMessage(jid, {
+    try {
+      await ctx.sock.sendMessage(ctx.jid, {
         audio: { url: audioUrl },
         mimetype: 'audio/mpeg',
-        fileName: `${title}.mp3`
-      }, { quoted: m });
-
-      await sock.sendMessage(jid, {
-        text: `*✅ ${title}*\n*📺 ${channel}*\n\n💖 *SHADOW MD* 💖`
-      }, { quoted: m });
-
-      await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
+        fileName: `${title.replace(/[\\/:*?"<>|]/g, '_')}.mp3`
+      }, { quoted: ctx.m });
     } catch {
-      await ctx.reply('❌ Song download failed. Download service unavailable ya response badal gaya hai.');
+      return ctx.reply('❌ Audio send nahi hua. Download link expire ya unavailable ho sakta hai.');
     }
   }
 };
+
+export default { command };
