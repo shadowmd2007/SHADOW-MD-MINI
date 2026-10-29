@@ -9,7 +9,7 @@ export const command = {
     if (!query) return await ctx.reply(`*Example:* ${ctx.prefix}video Pasoori`);
     try {
       await sock.sendMessage(jid, { react: { text: '🎬', key: m.key } });
-      await ctx.reply(`⏳ *Searching video for "${query}"...*`);
+      await ctx.reply(`🔍 *"${query}"* search...`);
       let videoUrl = '', title = query, thumbnail = '', channel = '';
       try {
         let r1 = await fetch(`https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`);
@@ -17,34 +17,24 @@ export const command = {
         if (j1?.result?.[0]?.url) { videoUrl = j1.result[0].url; title = j1.result[0].title; thumbnail = j1.result[0].thumbnail; channel = j1.result[0].author || ''; }
       } catch {}
       if (!videoUrl) return await ctx.reply(`❌ *Video not found.*`);
-      
-      // PEHLE PICTURE BHEJO
       if (thumbnail) {
         try {
-          const thumbCaption = `╭───❀ 🌹 ❀───╮\n   🌹 𝐕𝐈𝐃𝐄𝐎 𝐅𝐎𝐔𝐍𝐃 🌹\n╰───❀ 🌹 ❀───╯\n\n*🎬 Title:* ${title}\n*📺 Channel:* ${channel}\n\n*📥 Sending video now...*\n\n╭───❀ 🌹 ❀───╮\n   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹\n   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖\n╰───❀ 🌹 ❀───╯`;
-          await sock.sendMessage(jid, { image: { url: thumbnail }, caption: thumbCaption }, { quoted: m });
+          await sock.sendMessage(jid, { image: { url: thumbnail }, caption: `*🎬 ${title}*\n*📺 ${channel}*\n\n📥 Video bhej raha hun...` }, { quoted: m });
         } catch {}
       }
-
       let videoDownloadUrl = '';
-      try {
-        let d1 = await fetch(`https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoUrl)}`);
-        let jd1 = await d1.json();
-        videoDownloadUrl = jd1?.result?.downloadUrl || jd1?.result?.url;
-      } catch {}
-      if (!videoDownloadUrl) {
-        try {
-          let d2 = await fetch(`https://api.vreden.my.id/api/ytmp4?url=${encodeURIComponent(videoUrl)}`);
-          let jd2 = await d2.json();
-          videoDownloadUrl = jd2?.result?.download || jd2?.result?.url;
-        } catch {}
+      const apis = [
+        `https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
+        `https://api.vreden.my.id/api/ytmp4?url=${encodeURIComponent(videoUrl)}`,
+        `https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(videoUrl)}`
+      ];
+      for(const api of apis){
+        try{ let r = await fetch(api); let j = await r.json(); let url = j?.result?.downloadUrl || j?.result?.url || j?.result?.download || j?.url; if(url){ videoDownloadUrl = url; break; } }catch{}
       }
-      if (!videoDownloadUrl) throw new Error('API failed');
-      
-      const caption = `╭───❀ 🌹 ❀───╮\n   🌹 𝐕𝐈𝐃𝐄𝐎 𝐅𝐎𝐔𝐍𝐃 🌹\n╰───❀ 🌹 ❀───╯\n\n*🎬 Title:* ${title}\n*📺 Channel:* ${channel}\n\n╭───❀ 🌹 ❀───╮\n   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹\n   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖\n╰───❀ 🌹 ❀───╯`;
-      
-      await sock.sendMessage(jid, { video: { url: videoDownloadUrl }, mimetype: 'video/mp4', fileName: `${title}.mp4`, caption: caption }, { quoted: m });
+      if (!videoDownloadUrl) throw new Error('All APIs failed');
+      const caption = `*🎬 Title:* ${title}\n*📺 Channel:* ${channel}\n\n🌹 *Meri JAAN* 💖`;
+      await sock.sendMessage(jid, { video: { url: videoDownloadUrl }, mimetype: 'video/mp4', fileName: `${title}.mp4`, caption }, { quoted: m });
       await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
-    } catch (e) { await ctx.reply(`❌ *Failed to download video.*\n\n╭───❀ 🌹 ❀───╮\n   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹\n   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖\n╰───❀ 🌹 ❀───╯`); }
+    } catch (e) { await ctx.reply(`❌ *Failed.* Try again: ${e.message}\nMeri JAAN 🌹`); }
   }
 };
