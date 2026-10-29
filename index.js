@@ -24,8 +24,21 @@ try{ if(fs.existsSync(ANTIDELETE_FILE)) antiDeleteEnabled = JSON.parse(fs.readFi
 app.use(express.urlencoded({extended:true})); app.use(express.json());
 function cleanAuth(){ try{if(fs.existsSync(AUTH_DIR))fs.rmSync(AUTH_DIR,{recursive:true,force:true})}catch{} try{fs.mkdirSync(AUTH_DIR,{recursive:true})}catch{} }
 function normNum(v){ let n=String(v||'').replace(/\D/g,''); if(n.startsWith('0'))n='92'+n.slice(1); return n; }
-function getDP(){ if(config.menuImage?.startsWith('http')) return config.menuImage; return "https://i.ibb.co/BHfCmfbw/jawadmd.jpg"; }
-function loadCommands(){ commandsMap.clear(); const dir=path.join(__dirname,'commands'); if(!fs.existsSync(dir)) return; const scan=(d)=>{ for(const f of fs.readdirSync(d)){ const p=path.join(d,f); if(fs.statSync(p).isDirectory()) scan(p); else if(f.endsWith('.js')) commandsMap.set(f.replace('.js','').toLowerCase(),p);} }; try{scan(dir);}catch{} }
+function getDP(){ if(config.menuImage?.startsWith('http')) return config.menuImage; if(config.botImage?.startsWith('http')) return config.botImage; return "https://i.ibb.co/BHfCmfbw/jawadmd.jpg"; }
+function loadCommands(){ 
+  commandsMap.clear(); 
+  const dir=path.join(__dirname,'commands'); 
+  if(!fs.existsSync(dir)) return; 
+  const scan=(d)=>{ 
+    for(const f of fs.readdirSync(d)){ 
+      const p=path.join(d,f); 
+      if(fs.statSync(p).isDirectory()) scan(p); 
+      else if(f.endsWith('.js')) commandsMap.set(f.replace('.js','').toLowerCase(),p);
+    } 
+  }; 
+  scan(dir);
+  console.log(`✅ ${commandsMap.size} commands loaded:`, [...commandsMap.keys()].join(', '));
+}
 loadCommands();
 function saveAntiDelete(){ try{ fs.writeFileSync(ANTIDELETE_FILE, JSON.stringify({enabled: antiDeleteEnabled})); }catch{} }
 
@@ -35,13 +48,13 @@ function html(){
 }
 app.get('/',(req,res)=>res.send(html()));
 
-function getSender(m){ let s = m.key.participant || m.key.remoteJid || ""; return s.replace(/@.*/, '').replace(/\D/g,''); }
+function getSender(m){ return (m.key.participant || m.key.remoteJid || "").replace(/@.*/,'').replace(/\D/g,''); }
 function isOwner(m){
   const sender = getSender(m);
   const owners = (config.ownerNumber || []).map(n=> String(n).replace(/\D/g,''));
-  return owners.some(o=> sender.endsWith(o.slice(-10)) || o.endsWith(sender.slice(-10)) || sender===o);
+  if(owners.length===0) return true; // agar owner set nahi to sabko owner mano
+  return owners.some(o=> sender.includes(o.slice(-10)) || o.includes(sender.slice(-10)));
 }
-function isPublicCmd(cmd){ return ['video','play','song','ytv','yta','mp3','mp4','drama','fb','tiktok','insta'].includes(cmd); }
 
 async function startBot(num){
   if(num){lastNumber=num;cleanAuth();}
@@ -60,65 +73,77 @@ async function startBot(num){
       let text = m.message.conversation || m.message.extendedTextMessage?.text || m.message.imageMessage?.caption || m.message.videoMessage?.caption || ""; 
       const jid=m.key.remoteJid; if(!text) return;
       if(!text.startsWith(config.prefix)) return;
-      const args = text.slice(config.prefix.length).trim().split(/ +/); const cmd = args.shift().toLowerCase(); if(!cmd) return;
-      console.log(`[CMD] .${cmd} owner=${isOwner(m)}`);
+      
+      const args = text.slice(config.prefix.length).trim().split(/ +/); 
+      const cmd = args.shift().toLowerCase(); if(!cmd) return;
+      
+      console.log(`[CMD] .${cmd} from ${getSender(m)}`);
 
-      // OWNER ONLY COMMANDS: vv2, vv3, antidelete
-      const ownerOnly = ['vv2','vv','viewonce','vv3','tovv','antidelete','del',' antidelete'];
+      // OWNER ONLY: vv2, vv3, antidelete
+      const ownerOnly = ['vv2','vv','vv3','tovv','antidelete','antidel'];
       if(ownerOnly.includes(cmd) && !isOwner(m)){
-        return; // Koi aur likhe to ignore - tumhari private pe nahi ayega
-      }
-
-      // ANTIDELETE TOGGLE - SIRF OWNER
-      if(cmd==='antidelete' || cmd==='antidel'){
-        if(!isOwner(m)) return;
-        const sub = args[0]?.toLowerCase();
-        if(sub==='on'){ antiDeleteEnabled=true; saveAntiDelete(); await wa.sendMessage(jid,{text:`✅ Antidelete ON\nAb deleted msg sirf tumhari private (bot number) pe ayenge\n🌹 Meri JAAN`},{quoted:m}); }
-        else if(sub==='off'){ antiDeleteEnabled=false; saveAntiDelete(); await wa.sendMessage(jid,{text:`❌ Antidelete OFF`},{quoted:m}); }
-        else { await wa.sendMessage(jid,{text:`*Antidelete Status:* ${antiDeleteEnabled?'ON':'OFF'}\n\n.antidelete on - ON karo\n.antidelete off - OFF karo\n\nSIRF tumhari private me ayega, kisi aur ko nahi\n🌹`},{quoted:m}); }
+        await wa.sendMessage(jid,{text:`❌ Ye command sirf owner use kar sakta hai\n🌹`},{quoted:m});
         return;
       }
 
+      // ANTIDELETE TOGGLE
+      if(cmd==='antidelete' || cmd==='antidel'){
+        const sub = args[0]?.toLowerCase();
+        if(sub==='on'){ antiDeleteEnabled=true; saveAntiDelete(); await wa.sendMessage(jid,{text:`✅ Antidelete ON\nAb deleted msg sirf tumhari private pe ayenge`},{quoted:m}); }
+        else if(sub==='off'){ antiDeleteEnabled=false; saveAntiDelete(); await wa.sendMessage(jid,{text:`❌ Antidelete OFF`},{quoted:m}); }
+        else { await wa.sendMessage(jid,{text:`*Antidelete:* ${antiDeleteEnabled?'ON':'OFF'}\n.antidelete on / off`},{quoted:m}); }
+        return;
+      }
+
+      // COMMAND EXECUTE - HAR TARAH KA SUPPORT
       if(commandsMap.has(cmd)){
-        const fp=commandsMap.get(cmd);
-        const mod=await import(pathToFileURL(fp).href+`?t=${Date.now()}`);
-        if(mod.command?.run){
-          const ctx = { args, sock: wa, jid, m, prefix: config.prefix, isOwner: isOwner(m), reply: async (t)=>{ await wa.sendMessage(jid, { text: t }, { quoted: m }); } };
-          await mod.command.run(ctx);
-          return;
+        try{
+          const fp=commandsMap.get(cmd);
+          const mod=await import(pathToFileURL(fp).href+`?t=${Date.now()}`);
+          // 1. New style: command.run(ctx)
+          if(mod.command?.run){
+            const ctx = { args, sock: wa, jid, m, prefix: config.prefix, isOwner: isOwner(m), reply: async (t)=>{ await wa.sendMessage(jid, { text: t }, { quoted: m }); } };
+            await mod.command.run(ctx);
+            return;
+          }
+          // 2. Old style: execute(wa,m,args)
+          let fn = mod.execute || mod.default?.execute || mod.default;
+          if(typeof fn==='function'){
+            await fn(wa,m,args,{config,prefix:config.prefix,commands:commandsMap, conn:wa, isOwner: isOwner(m)});
+            return;
+          }
+        }catch(e){ 
+          console.log(`CMD ${cmd} ERR:`, e); 
+          await wa.sendMessage(jid,{text:`❌ Error .${cmd}: ${e.message}`},{quoted:m}); 
+        }
+      } else {
+        // Command nahi mila to menu suggest karo
+        if(cmd!=='menu' && cmd!=='help'){
+          await wa.sendMessage(jid,{text:`❌ Command .${cmd} nahi mila\n.menu likho`},{quoted:m});
         }
       }
-    }catch(e){console.log("CMD ERR",e.message)}
+    }catch(e){console.log("upsert err",e)}
   });
 
-  // ANTIDELETE - SIRF TUMHARI PRIVATE ME JAYEGA
+  // ANTIDELETE - SIRF OWNER PRIVATE
   wa.ev.on('messages.update', async (updates)=>{
     try{
       if(!antiDeleteEnabled) return;
       for(const {key, update} of updates){
-        if(update.messageStubType===1 || update.messageStubType===2){ // delete
+        if(update.messageStubType===1){
           const stored = messageStore.get(key.id);
           if(!stored?.message) continue;
-          const privateJid = wa.user.id; // BOT NUMBER - TUMHARI PRIVATE
+          const privateJid = wa.user.id;
           let txt = stored.message.conversation || stored.message.extendedTextMessage?.text || "[Media]";
-          await wa.sendMessage(privateJid, { text: `*🗑️ ANTIDELETE - DELETED MSG*\n\n*From:* ${stored.key.remoteJid}\n*Sender:* ${stored.key.participant || stored.key.remoteJid}\n*Text:* ${txt}\n\n🌹 Meri JAAN - Sirf tum dekh sakte ho` });
-          // Agar media tha to media bhi bhejo private me
-          try{
-            if(stored.message.imageMessage || stored.message.videoMessage){
-              const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
-              const buf = await downloadMediaMessage(stored, 'buffer', {}, { logger, reuploadRequest: wa.updateMediaMessage });
-              if(stored.message.imageMessage) await wa.sendMessage(privateJid, { image: buf, caption: `🗑️ Deleted Image\nFrom: ${stored.key.remoteJid}` });
-              if(stored.message.videoMessage) await wa.sendMessage(privateJid, { video: buf, caption: `🗑️ Deleted Video\nFrom: ${stored.key.remoteJid}` });
-            }
-          }catch{}
+          await wa.sendMessage(privateJid, { text: `*🗑️ DELETED*\nFrom: ${stored.key.remoteJid}\nMsg: ${txt}` });
         }
       }
-    }catch(e){console.log("antidel err",e.message)}
+    }catch{}
   });
 
-  wa.ev.on('connection.update',async (u)=>{ const {connection,lastDisconnect}=u; if(connection==='open'){ status='CONNECTED';pairCode=null; loadCommands(); console.log("✅ ONLINE - ANTIDELETE PRIVATE ONLY"); } else if(connection==='close'){ status='DISCONNECTED';sock=null; if(lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut) setTimeout(()=>startBot(),3000); } });
+  wa.ev.on('connection.update',async (u)=>{ const {connection,lastDisconnect}=u; if(connection==='open'){ status='CONNECTED';pairCode=null; loadCommands(); console.log("✅ ONLINE"); } else if(connection==='close'){ status='DISCONNECTED';sock=null; if(lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut) setTimeout(()=>startBot(),3000); } });
   if(num){ await new Promise(r=>setTimeout(r,3500)); try{let code=await wa.requestPairingCode(num);code=code.toUpperCase().replace(/[^A-Z0-9]/g,'').match(/.{1,4}/g).join('-');pairCode=code;pairTime=Date.now();}catch(e){} }
 }
 app.post('/pair', async (req,res)=>{ const n=normNum(req.body?.num); lastNumber=n;pairCode=null;status='CONNECTING';await startBot(n); for(let i=0;i<12;i++){if(pairCode)break;await new Promise(r=>setTimeout(r,1000));}res.redirect('/'); }); 
-app.listen(PORT,()=>console.log('ANTIDELETE PRIVATE on '+PORT));
+app.listen(PORT,()=>console.log('ON '+PORT));
 if(fs.existsSync(AUTH_DIR)&&fs.readdirSync(AUTH_DIR).length>0)startBot();
