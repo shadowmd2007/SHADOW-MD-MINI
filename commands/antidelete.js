@@ -1,61 +1,44 @@
-import fs from 'fs';
-const dbPath = './data/antidelete.json';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const dbPath = path.resolve('./data/antidelete.json');
+
+function readDb() {
+  try {
+    return { enabled: !!JSON.parse(fs.readFileSync(dbPath, 'utf8')).enabled };
+  } catch {
+    return { enabled: false };
+  }
+}
+
+function writeDb(db) {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  fs.writeFileSync(dbPath, JSON.stringify({ enabled: !!db.enabled, ownerJid: null }, null, 2));
+}
 
 export const command = {
   name: 'antidelete',
   aliases: ['antidel', 'ad'],
-  category: 'AUTO SYSTEM',
-  description: 'Deleted msg only personal',
+  category: 'OWNER',
+  owner: true,
+  description: 'Send deleted-message copies to bot owner personal chat',
 
   run: async (ctx) => {
-    const arg = ctx.args[0]?.toLowerCase();
-    if (!fs.existsSync('./data')) fs.mkdirSync('./data');
-    if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ enabled: false, ownerJid: null }));
-
-    let db = JSON.parse(fs.readFileSync(dbPath));
-
-    if (!arg) {
-      return await ctx.reply(`╭───❀ 🌹 ❀───╮
-   🌹 𝐀𝐍𝐓𝐈 𝐃𝐄𝐋𝐄𝐓𝐄 🌹
-╰───❀ 🌹 ❀───╯
-
-Status: ${db.enabled ? '✅ ON' : '❌ OFF'}
-Owner: ${db.ownerJid ? db.ownerJid.split('@')[0] : 'Not Set'}
-
-Use:
-${ctx.prefix}antidelete on
-${ctx.prefix}antidelete off
-
-Jab ON hoga to koi bhi message delete karega
-Uska Number, Naam, pura Message sirf tumhare Personal pe ayega
-
-╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
-   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
-   💖 𝐑𝐀𝐍𝐀 𝐊𝐈 𝐉𝐀𝐀𝐍 💖
-╰───❀ 🌹 ❀───╯`);
-    }
+    const arg = String(ctx.args[0] || '').toLowerCase();
+    const db = readDb();
 
     if (arg === 'on') {
-      let ownerJid = ctx.jid.endsWith('@g.us') ? ctx.m.key.participant : ctx.jid;
       db.enabled = true;
-      db.ownerJid = ownerJid;
-      fs.writeFileSync(dbPath, JSON.stringify(db));
-      return await ctx.reply(`✅ *AntiDelete ON!*
-
-Ab se deleted message sirf is Personal pe ayega:
-${ownerJid.split('@')[0]}
-
-╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
-   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
-╰───❀ 🌹 ❀───╯`);
+      writeDb(db);
+      return ctx.reply('✅ *Antidelete ON*\nDeleted messages will be sent to the bot owner personal chat only.');
     }
 
     if (arg === 'off') {
       db.enabled = false;
-      fs.writeFileSync(dbPath, JSON.stringify(db));
-      return await ctx.reply(`❌ AntiDelete OFF`);
+      writeDb(db);
+      return ctx.reply('❌ *Antidelete OFF*');
     }
+
+    return ctx.reply(`*ANTIDELETE:* ${db.enabled ? 'ON ✅' : 'OFF ❌'}\nUse: ${ctx.prefix}antidelete on / off`);
   }
 };
