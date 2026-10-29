@@ -9,7 +9,14 @@ import { CommandError } from './lib/command-utils.js';
 
 const makeWASocket = baileys.default || baileys.makeWASocket;
 const B = (k) => baileys[k] ?? baileys.default?.[k];
-const { useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion, DisconnectReason, downloadMediaMessage } = baileys;
+const {
+  useMultiFileAuthState,
+  makeCacheableSignalKeyStore,
+  fetchLatestBaileysVersion,
+  DisconnectReason,
+  downloadMediaMessage
+} = baileys;
+
 const jidNormalizedUser = B('jidNormalizedUser') ?? ((j) => String(j || '').replace(/:\d+@/, '@'));
 const normalizeMessageContent = B('normalizeMessageContent') ?? ((c) => c);
 
@@ -33,14 +40,21 @@ const ANTIDELETE_FILE = path.join(DATA_DIR, 'antidelete.json');
 const ONLINE_FILE = path.join(DATA_DIR, 'online.json');
 const logger = pino({ level: 'silent' });
 
-let sock = null, status = 'DISCONNECTED', pairCode = null, pairTime = 0, lastNumber = '';
+let sock = null;
+let status = 'DISCONNECTED';
+let pairCode = null;
+let pairTime = 0;
+let lastNumber = '';
 let reconnectTimer = null;
+
 const messageStore = new Map();
 const registry = new Map();
 const commandsMap = registry;
+
 let antiDeleteEnabled = false;
 let alwaysOnline = true;
 let onlineInterval = null;
+
 const seenIds = new Set();
 const seenDeletes = new Set();
 
@@ -60,6 +74,7 @@ function readJson(file, fallbackFile) {
 {
   const a = readJson(ANTIDELETE_FILE, path.join(AUTH_DIR, 'antidelete.json'));
   if (a) antiDeleteEnabled = !!a.enabled;
+
   const o = readJson(ONLINE_FILE, path.join(AUTH_DIR, 'online.json'));
   if (o && typeof o.online === 'boolean') alwaysOnline = o.online;
 }
@@ -67,7 +82,10 @@ function readJson(file, fallbackFile) {
 function saveAntiDelete() {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(ANTIDELETE_FILE, JSON.stringify({ enabled: antiDeleteEnabled, ownerJid: null }));
+    fs.writeFileSync(ANTIDELETE_FILE, JSON.stringify({
+      enabled: antiDeleteEnabled,
+      ownerJid: null
+    }));
   } catch {}
 }
 
@@ -93,11 +111,11 @@ function getDP() {
   return 'https://i.ibb.co/BHfCmfbw/jawadmd.jpg';
 }
 
-// ================= COMMAND LOADER =================
 const fileName = (f) => f.replace(/\.js$/, '').toLowerCase();
 
 async function loadCommands() {
   registry.clear();
+
   const files = fs.existsSync(COMMANDS_DIR)
     ? fs.readdirSync(COMMANDS_DIR).filter((f) => f.endsWith('.js')).sort()
     : [];
@@ -115,9 +133,7 @@ async function loadCommands() {
       continue;
     }
 
-    if (mod.aliases && typeof mod.aliases === 'object') {
-      aliasMaps.push(mod.aliases);
-    }
+    if (mod.aliases && typeof mod.aliases === 'object') aliasMaps.push(mod.aliases);
 
     const add = (kind, fn, names, d = {}) => {
       names = names.map((n) => String(n).toLowerCase()).filter(Boolean);
@@ -154,14 +170,10 @@ async function loadCommands() {
     const d = mod.default;
 
     if (typeof d === 'function') {
-      const names = Array.isArray(d.command)
-        ? d.command
-        : [d.command || d.name || fileName(f)];
-
+      const names = Array.isArray(d.command) ? d.command : [d.command || d.name || fileName(f)];
       if (d.command && Array.isArray(d.command) && !d.command.includes(fileName(f))) {
         names.unshift(fileName(f));
       }
-
       add('exec', d.execute || d, names, d);
     } else if (d && typeof d === 'object') {
       if (typeof d.run === 'function' && !mod.command) {
@@ -177,7 +189,6 @@ async function loadCommands() {
   }
 
   for (const e of entries) registry.set(e.name, e);
-
   for (const e of entries) {
     for (const a of e.aliases) {
       if (!registry.has(a)) registry.set(a, e);
@@ -186,9 +197,7 @@ async function loadCommands() {
 
   for (const map of aliasMaps) {
     for (const [a, t] of Object.entries(map)) {
-      if (!registry.has(a) && registry.has(t)) {
-        registry.set(a, registry.get(t));
-      }
+      if (!registry.has(a) && registry.has(t)) registry.set(a, registry.get(t));
     }
   }
 
@@ -212,18 +221,42 @@ function setOnlinePresence(wa, online) {
     }
   } catch {}
 }
-
 function html() {
   const valid = pairCode && Date.now() - pairTime < 65000;
   const DP = getDP();
 
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>RANA MD</title><style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;color:#fff;padding:20px;font-family:Arial}.card{width:100%;max-width:430px;background:#111;border:2px solid #ff0040;border-radius:28px;padding:28px;text-align:center}.dp{width:130px;height:130px;border-radius:50%;border:3px solid #ff0040}.status{padding:7px 18px;border-radius:20px;font-weight:700;display:inline-block;margin:10px 0}.CONNECTED{background:#0f0;color:#000}.DISCONNECTED{background:#f00}input,button{width:100%;padding:14px;margin-top:12px;border-radius:14px}input{background:#000;color:#fff;border:1px solid #333;text-align:center}button{background:#ff0040;color:#fff;border:none;font-weight:700}.online{margin-top:10px;padding:8px;border-radius:10px;background:#222;font-size:13px}</style></head><body><div class="card"><img class="dp" src="${DP}"><h1>RANA FURQAN MD</h1><div style="color:#ff4d6d">🌹 Meri JAAN 🌹</div><div class="status ${status}">${status}</div><div class="online">Online: ${alwaysOnline ? '🟢 ON' : '⚫ OFF'} | Anti: ${antiDeleteEnabled ? 'ON' : 'OFF'} | ${commandsMap.size} Cmds</div>${status === 'CONNECTED' ? `<div style="color:#0f0;margin-top:10px">✅ BOT ONLINE</div>` : `<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="92300..." required><button>GET CODE</button></form>${valid ? `<h1 style="color:#0f0;letter-spacing:5px">${pairCode}</h1>` : ''}`}</div></body></html>`;
+  return `<!doctype html><html><head>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RANA MD</title>
+  <style>
+  body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;color:#fff;padding:20px;font-family:Arial}
+  .card{width:100%;max-width:430px;background:#111;border:2px solid #ff0040;border-radius:28px;padding:28px;text-align:center}
+  .dp{width:130px;height:130px;border-radius:50%;border:3px solid #ff0040}
+  .status{padding:7px 18px;border-radius:20px;font-weight:700;display:inline-block;margin:10px 0}
+  .CONNECTED{background:#0f0;color:#000}
+  .DISCONNECTED{background:#f00}
+  input,button{width:100%;padding:14px;margin-top:12px;border-radius:14px}
+  input{background:#000;color:#fff;border:1px solid #333;text-align:center}
+  button{background:#ff0040;color:#fff;border:none;font-weight:700}
+  .online{margin-top:10px;padding:8px;border-radius:10px;background:#222;font-size:13px}
+  </style></head><body><div class="card">
+  <img class="dp" src="${DP}">
+  <h1>RANA FURQAN MD</h1>
+  <div style="color:#ff4d6d">🌹 SHADOW MD 🌹</div>
+  <div class="status ${status}">${status}</div>
+  <div class="online">Online: ${alwaysOnline ? '🟢 ON' : '⚫ OFF'} | Anti: ${antiDeleteEnabled ? 'ON' : 'OFF'} | ${commandsMap.size} Cmds</div>
+  ${status === 'CONNECTED'
+    ? '<div style="color:#0f0;margin-top:10px">✅ BOT ONLINE</div>'
+    : `<form method="post" action="/pair">
+      <input name="num" value="${lastNumber}" placeholder="92300..." required>
+      <button>GET CODE</button>
+      </form>${valid ? `<h1 style="color:#0f0;letter-spacing:5px">${pairCode}</h1>` : ''}`}
+  </div></body></html>`;
 }
 
 app.get('/', (req, res) => res.send(html()));
 app.get('/health', (req, res) => res.send('OK'));
 
-// ================= HELPERS =================
 const digits = (j) => String(j || '').split('@')[0].split(':')[0].replace(/\D/g, '');
 
 function tsOf(m) {
@@ -283,105 +316,126 @@ function getText(content) {
 
 // ================= VIEW ONCE (.vv .vv2 .vv3) =================
 async function openViewOnce(wa, m, ctx, toSender) {
-  if (!ctx.isOwner) return ctx.reply('❌ This command is for the owner only.');
-
-  const info = ctx.content?.extendedTextMessage?.contextInfo;
-
-  if (!info?.quotedMessage) {
-    return ctx.reply(`❌ Reply to a view-once photo, video or voice note with ${ctx.prefix}${ctx.cmd}`);
-  }
-
   try {
-    const stored = messageStore.get(info.stanzaId);
-    let inner = normalizeMessageContent(stored?.message || info.quotedMessage) || {};
+    const info = ctx.content?.extendedTextMessage?.contextInfo || {};
+    const quoted = info.quotedMessage;
+    const stanzaId = info.stanzaId;
 
-    if (inner.viewOnceMessage?.message) inner = inner.viewOnceMessage.message;
-    if (inner.viewOnceMessageV2?.message) inner = inner.viewOnceMessageV2.message;
-    if (inner.viewOnceMessageV2Extension?.message) inner = inner.viewOnceMessageV2Extension.message;
+    let stored = stanzaId ? messageStore.get(stanzaId) : null;
+    let mediaMessage = quoted || stored?.message;
 
-    const kind = inner.imageMessage
-      ? 'image'
-      : inner.videoMessage
-        ? 'video'
-        : inner.audioMessage
-          ? 'audio'
-          : null;
+    if (!mediaMessage) {
+      return ctx.reply('❌ Media nahi mili. View-once media ko reply karke command bhejein.');
+    }
 
-    if (!kind) return ctx.reply('❌ That is not a photo, video or voice note.');
+    mediaMessage = normalizeMessageContent(mediaMessage) || mediaMessage;
 
-    const buf = await downloadMediaMessage(
-      {
-        key: {
-          remoteJid: ctx.jid,
-          id: info.stanzaId,
-          participant: info.participant
-        },
-        message: inner
+    const unwrap = (obj) => {
+      let c = obj;
+      for (let i = 0; i < 5 && c; i++) {
+        if (c.viewOnceMessage?.message) c = c.viewOnceMessage.message;
+        else if (c.viewOnceMessageV2?.message) c = c.viewOnceMessageV2.message;
+        else if (c.viewOnceMessageV2Extension?.message) c = c.viewOnceMessageV2Extension.message;
+        else break;
+      }
+      return c;
+    };
+
+    mediaMessage = unwrap(mediaMessage);
+
+    const isMedia = mediaMessage?.imageMessage ||
+      mediaMessage?.videoMessage ||
+      mediaMessage?.audioMessage;
+
+    if (!isMedia) {
+      return ctx.reply('❌ Yeh supported view-once media nahi hai.');
+    }
+
+    const target = toSender
+      ? (m.key.participant || m.key.remoteJid)
+      : ownJidOf(wa);
+
+    const fakeMessage = {
+      key: stored?.key || {
+        remoteJid: m.key.remoteJid,
+        id: stanzaId || m.key.id,
+        participant: m.key.participant
       },
+      message: mediaMessage
+    };
+
+    const buffer = await downloadMediaMessage(
+      fakeMessage,
       'buffer',
       {},
       { logger, reuploadRequest: wa.updateMediaMessage }
     );
 
-    let target = ownJidOf(wa);
-    if (toSender) target = ctx.isGroup ? (info.participant || ctx.jid) : ctx.jid;
-
-    if (kind === 'image') {
-      await wa.sendMessage(target, { image: buf, caption: inner.imageMessage.caption || '' });
-    } else if (kind === 'video') {
-      await wa.sendMessage(target, { video: buf, caption: inner.videoMessage.caption || '' });
+    if (mediaMessage.imageMessage) {
+      await wa.sendMessage(target, {
+        image: buffer,
+        caption: '✅ View-once image'
+      });
+    } else if (mediaMessage.videoMessage) {
+      await wa.sendMessage(target, {
+        video: buffer,
+        caption: '✅ View-once video'
+      });
     } else {
       await wa.sendMessage(target, {
-        audio: buf,
-        mimetype: inner.audioMessage.mimetype || 'audio/ogg; codecs=opus',
-        ptt: true
+        audio: buffer,
+        mimetype: mediaMessage.audioMessage.mimetype || 'audio/ogg; codecs=opus',
+        ptt: !!mediaMessage.audioMessage.ptt
       });
     }
 
-    await wa.sendMessage(ctx.jid, { react: { text: '✅', key: m.key } }).catch(() => {});
+    return ctx.reply('✅ Media send kar di gayi.');
   } catch (e) {
-    console.log('VV ERR', e.message);
-    await ctx.reply('❌ Could not open it. The media may have expired. Reply directly to the view-once message.');
+    console.log('VIEW ONCE ERROR:', e?.message || e);
+    return ctx.reply('❌ Media nahi mili ya download nahi ho saki.');
   }
 }
 
 // ================= ANTIDELETE =================
-async function handleDeleted(wa, deletedId) {
+async function handleDeleted(wa, id) {
   try {
-    if (!antiDeleteEnabled || !deletedId || seenDeletes.has(deletedId)) return;
+    if (!antiDeleteEnabled || !id || seenDeletes.has(id)) return;
+    seenDeletes.add(id);
 
-    const stored = messageStore.get(deletedId);
-    if (!stored?.message || stored.key?.fromMe) return;
-
-    seenDeletes.add(deletedId);
+    const stored = messageStore.get(id);
+    if (!stored?.message) return;
 
     const me = ownJidOf(wa);
-    const c = normalizeMessageContent(stored.message) || {};
+    if (!me) return;
+
+    const c = normalizeMessageContent(stored.message) || stored.message;
     const chat = stored.key.remoteJid || '';
     const isGrp = chat.endsWith('@g.us');
     const who = digits(stored.key.participant || chat);
 
-    const head = `*🗑️ DELETED MESSAGE*\n👤 From: ${stored.pushName || 'Unknown'} (+${who})\n💬 Chat: ${isGrp ? 'Group ' + chat.split('@')[0] : 'Private'}\n🕒 ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Karachi' })}`;
+    const head =
+      `*🗑️ DELETED MESSAGE*\n` +
+      `👤 From: ${stored.pushName || 'Unknown'} (+${who})\n` +
+      `💬 Chat: ${isGrp ? 'Group ' + chat.split('@')[0] : 'Private'}\n` +
+      `🕒 ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Karachi' })}`;
 
     const text = getText(c);
-    const kind = c.imageMessage
-      ? 'image'
-      : c.videoMessage
-        ? 'video'
-        : c.audioMessage
-          ? 'audio'
-          : c.stickerMessage
-            ? 'sticker'
-            : null;
+    const kind = c.imageMessage ? 'image'
+      : c.videoMessage ? 'video'
+      : c.audioMessage ? 'audio'
+      : c.stickerMessage ? 'sticker'
+      : null;
 
     if (kind) {
       let buf = null;
 
       try {
-        buf = await downloadMediaMessage(stored, 'buffer', {}, {
-          logger,
-          reuploadRequest: wa.updateMediaMessage
-        });
+        buf = await downloadMediaMessage(
+          stored,
+          'buffer',
+          {},
+          { logger, reuploadRequest: wa.updateMediaMessage }
+        );
       } catch {}
 
       if (buf) {
@@ -420,7 +474,6 @@ async function handleDeleted(wa, deletedId) {
     console.log('antidelete err', e.message);
   }
 }
-
 // ================= MESSAGE HANDLER =================
 async function onMessage(wa, m) {
   const content = normalizeMessageContent(m.message) || m.message;
@@ -432,7 +485,6 @@ async function onMessage(wa, m) {
 
   const args = text.slice(prefix.length).trim().split(/\s+/);
   const cmd = (args.shift() || '').toLowerCase();
-
   if (!cmd) return;
 
   const isGroup = jid.endsWith('@g.us');
@@ -453,14 +505,13 @@ async function onMessage(wa, m) {
     ).catch((e) => console.log('reply err', e.message));
 
   let metaCache = null;
-  const getMeta = async () => (metaCache ||= (isGroup ? await wa.groupMetadata(jid) : null));
+  const getMeta = async () =>
+    (metaCache ||= (isGroup ? await wa.groupMetadata(jid) : null));
 
   const info = content?.extendedTextMessage?.contextInfo || {};
   let targets = info.mentionedJid?.length
     ? info.mentionedJid
-    : info.participant
-      ? [info.participant]
-      : [];
+    : info.participant ? [info.participant] : [];
 
   if (!targets.length) {
     targets = args
@@ -499,7 +550,8 @@ async function onMessage(wa, m) {
   console.log(`CMD: ${prefix}${cmd} owner:${isOwner} group:${isGroup}`);
 
   if (cmd === 'vv') return openViewOnce(wa, m, ctx, false);
-  if (cmd === 'vv2' || cmd === 'vv3') return openViewOnce(wa, m, ctx, true);
+  if (cmd === 'vv2') return openViewOnce(wa, m, ctx, false);
+  if (cmd === 'vv3') return openViewOnce(wa, m, ctx, true);
 
   if (cmd === 'antidelete' || cmd === 'antidel' || cmd === 'ad') {
     if (!isOwner) return reply('❌ This command is for the owner only.');
@@ -518,7 +570,9 @@ async function onMessage(wa, m) {
       return reply('❌ *Antidelete OFF*');
     }
 
-    return reply(`*Antidelete:* ${antiDeleteEnabled ? 'ON ✅' : 'OFF ❌'}\nUse: ${prefix}antidelete on / off`);
+    return reply(
+      `*Antidelete:* ${antiDeleteEnabled ? 'ON ✅' : 'OFF ❌'}\nUse: ${prefix}antidelete on / off`
+    );
   }
 
   if (cmd === 'alwaysonline' || cmd === 'alwayson') {
@@ -540,14 +594,21 @@ async function onMessage(wa, m) {
       return reply('⚫ *Always Online OFF*');
     }
 
-    return reply(`*Always Online:* ${alwaysOnline ? 'ON 🟢' : 'OFF ⚫'}\nUse: ${prefix}alwaysonline on / off`);
+    return reply(
+      `*Always Online:* ${alwaysOnline ? 'ON 🟢' : 'OFF ⚫'}\nUse: ${prefix}alwaysonline on / off`
+    );
   }
 
   const entry = registry.get(cmd);
   if (!entry) return;
 
-  if (entry.owner && !isOwner) return reply('❌ This command is for the owner only.');
-  if (entry.group && !isGroup) return reply('❌ This command can only be used in groups.');
+  if (entry.owner && !isOwner) {
+    return reply('❌ This command is for the owner only.');
+  }
+
+  if (entry.group && !isGroup) {
+    return reply('❌ This command can only be used in groups.');
+  }
 
   try {
     if (entry.kind === 'ctx') {
@@ -565,8 +626,12 @@ async function onMessage(wa, m) {
     }
   } catch (e) {
     if (e instanceof CommandError) return reply(e.message);
+
     console.log(`CMD ERR (${cmd}):`, e?.message || e);
-    return reply(`❌ Something went wrong while running ${prefix}${cmd}. Please check how you used it and try again.`);
+
+    return reply(
+      `❌ Something went wrong while running ${prefix}${cmd}. Please check how you used it and try again.`
+    );
   }
 }
 
@@ -574,7 +639,9 @@ async function onMessage(wa, m) {
 async function startBot(num) {
   if (num) lastNumber = num;
 
-  if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
+  if (!fs.existsSync(AUTH_DIR)) {
+    fs.mkdirSync(AUTH_DIR, { recursive: true });
+  }
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
@@ -601,7 +668,9 @@ async function startBot(num) {
       for (const mm of upsert.messages || []) {
         if (!mm?.message || !mm.key?.id) continue;
 
-        const proto = normalizeMessageContent(mm.message)?.protocolMessage || mm.message.protocolMessage;
+        const proto =
+          normalizeMessageContent(mm.message)?.protocolMessage ||
+          mm.message.protocolMessage;
 
         if (proto) {
           if (proto.type === 0 || proto.type === 'REVOKE') {
@@ -619,15 +688,23 @@ async function startBot(num) {
       if (upsert.type !== 'notify') return;
 
       for (const m of upsert.messages || []) {
-        if (!m?.message || !m.key?.remoteJid || m.key.remoteJid === 'status@broadcast') continue;
+        if (
+          !m?.message ||
+          !m.key?.remoteJid ||
+          m.key.remoteJid === 'status@broadcast'
+        ) continue;
+
         if (m.message.protocolMessage) continue;
 
         const t = tsOf(m);
         if (t && Date.now() / 1000 - t > 60) continue;
-        if (seenIds.has(m.key.id)) continue;
 
+        if (seenIds.has(m.key.id)) continue;
         seenIds.add(m.key.id);
-        await onMessage(wa, m).catch((e) => console.log('onMessage err', e?.message || e));
+
+        await onMessage(wa, m).catch(
+          (e) => console.log('onMessage err', e?.message || e)
+        );
       }
     } catch (e) {
       console.log('upsert crash', e.message);
@@ -653,9 +730,13 @@ async function startBot(num) {
     if (connection === 'open') {
       status = 'CONNECTED';
       pairCode = null;
+
       await loadCommands();
       setOnlinePresence(wa, alwaysOnline);
-      console.log(`✅ ONLINE - ${registry.size} names - ONLINE ${alwaysOnline ? 'ON' : 'OFF'} - ANTIDELETE ${antiDeleteEnabled ? 'ON' : 'OFF'}`);
+
+      console.log(
+        `✅ ONLINE - ${registry.size} names - ONLINE ${alwaysOnline ? 'ON' : 'OFF'} - ANTIDELETE ${antiDeleteEnabled ? 'ON' : 'OFF'}`
+      );
     } else if (connection === 'close') {
       status = 'DISCONNECTED';
       sock = null;
@@ -666,9 +747,10 @@ async function startBot(num) {
 
       if (code !== DisconnectReason.loggedOut) {
         clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(() => {
-          startBot().catch((e) => console.log('reconnect err', e.message));
-        }, 3000);
+        reconnectTimer = setTimeout(
+          () => startBot().catch((e) => console.log('reconnect err', e.message)),
+          3000
+        );
       }
     }
   });
@@ -717,15 +799,23 @@ app.post('/pair', async (req, res) => {
   res.redirect('/');
 });
 
-process.on('uncaughtException', (e) => console.log('uncaught:', e?.message || e));
-process.on('unhandledRejection', (e) => console.log('unhandled:', e?.message || e));
+process.on('uncaughtException', (e) => {
+  console.log('uncaught:', e?.message || e);
+});
+
+process.on('unhandledRejection', (e) => {
+  console.log('unhandled:', e?.message || e);
+});
 
 await loadCommands();
+
 app.listen(PORT, () => console.log('BOT READY ON ' + PORT));
 
 try {
   const credsPath = path.join(AUTH_DIR, 'creds.json');
-  const creds = fs.existsSync(credsPath) ? JSON.parse(fs.readFileSync(credsPath, 'utf8')) : null;
+  const creds = fs.existsSync(credsPath)
+    ? JSON.parse(fs.readFileSync(credsPath, 'utf8'))
+    : null;
 
   if (creds?.registered === true) {
     startBot().catch((e) => console.log('start err', e.message));
