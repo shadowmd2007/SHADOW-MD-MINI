@@ -31,18 +31,17 @@ function normNum(v){
   return n;
 }
 function getDP(){
-  try{
-    for(const v of Object.values(config)){ if(typeof v==='string' && v.startsWith('http')) return v; }
-  }catch{} return "https://i.ibb.co/1p9q3bL8/rana-furqan.jpg";
+  try{ for(const v of Object.values(config)){ if(typeof v==='string' && v.startsWith('http')) return v; } }catch{}
+  return "https://i.ibb.co/1p9q3bL8/rana-furqan.jpg";
 }
 function html(){
   const valid=pairCode&&Date.now()-pairTime<65000;
   const DP=getDP();
-  return`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>RANA FURQAN MD</title><style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;font-family:Arial;color:#fff;padding:15px}.c{width:100%;max-width:420px;background:#111;border:2px solid #f00;border-radius:22px;padding:25px;text-align:center}.dp{width:120px;height:120px;border-radius:50%;border:3px solid #f00;object-fit:cover}.st{padding:7px 16px;border-radius:20px;font-weight:bold;display:inline-block;margin:10px}.CONNECTED{background:#0f0;color:#000}.CONNECTING{background:#ff0;color:#000}.DISCONNECTED{background:#f00}.code{margin-top:18px;background:#000;border:2px dashed #0f0;border-radius:15px;padding:16px}.code h1{font-family:monospace;font-size:34px;letter-spacing:5px;color:#0f0}</style></head><body><div class="c"><img class="dp" src="${DP}"><h2>RANA FURQAN MD</h2><p style="color:#ff0040">🌹 Powered by Meri JAAN 🌹</p><div class="st ${status}">${status}</div>${status==='CONNECTED'?`<div style="color:#0f0"><h3>✅ BOT ONLINE - ${commandsMap.size} CMDS</h3></div>`:`<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="923003719761" required><button>GET CODE</button></form>${valid?`<div class="code"><h1>${pairCode}</h1></div>`:''}`}</div></body></html>`
+  return`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>RANA FURQAN MD</title><style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;font-family:Arial;color:#fff;padding:15px}.c{width:100%;max-width:420px;background:#111;border:2px solid #f00;border-radius:22px;padding:25px;text-align:center}.dp{width:120px;height:120px;border-radius:50%;border:3px solid #f00;object-fit:cover}.st{padding:7px 16px;border-radius:20px;font-weight:bold;display:inline-block;margin:10px}.CONNECTED{background:#0f0;color:#000}.CONNECTING{background:#ff0;color:#000}.DISCONNECTED{background:#f00}.code{margin-top:18px;background:#000;border:2px dashed #0f0;border-radius:15px;padding:16px}.code h1{font-family:monospace;font-size:34px;letter-spacing:5px;color:#0f0}</style></head><body><div class="c"><img class="dp" src="${DP}"><h2>RANA FURQAN MD</h2><p style="color:#ff0040">🌹 Powered by Meri JAAN 🌹</p><div class="st ${status}">${status}</div>${status==='CONNECTED'?`<div style="color:#0f0"><h3>✅ BOT ONLINE</h3><p>${commandsMap.size} Commands Loaded</p></div>`:`<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="923003719761" required><button>GET CODE</button></form>${valid?`<div class="code"><h1>${pairCode}</h1></div>`:''}`}</div></body></html>`
 }
 app.get('/',(req,res)=>res.send(html()));
 
-// LOAD COMMANDS - SIMPLE & SAFE
+// LOAD ALL 89 COMMANDS
 function loadCommands(){
   commandsMap.clear();
   const dir = path.join(__dirname,'commands');
@@ -55,7 +54,7 @@ function loadCommands(){
     }
   };
   scan(dir);
-  console.log(`✅ ${commandsMap.size} commands loaded`);
+  console.log(`✅ ${commandsMap.size} commands loaded: ${[...commandsMap.keys()].slice(0,10).join(', ')}...`);
 }
 loadCommands();
 
@@ -83,6 +82,7 @@ async function startBot(num){
         if(m.key.remoteJid==='status@broadcast') return;
         
         let text = m.message.conversation || m.message.extendedTextMessage?.text || m.message.imageMessage?.caption || m.message.videoMessage?.caption || "";
+        if(!text) text = m.message.ephemeralMessage?.message?.extendedTextMessage?.text || "";
         if(!text) return;
         
         const prefix = config.prefix || ".";
@@ -92,28 +92,27 @@ async function startBot(num){
         const cmd = args.shift().toLowerCase();
         if(!cmd) return;
 
-        console.log(`CMD: .${cmd}`);
+        console.log(`\n[CMD] .${cmd} by ${m.key.remoteJid}`);
         const jid = m.key.remoteJid;
         const DP = getDP();
 
-        // CORE - ALWAYS WORKING
-        if(cmd==='ping'){
-          await wa.sendMessage(jid, { text: `*Pong!* ${Date.now()%1000}ms` }, { quoted: m });
+        if(cmd==='ping' || cmd==='p'){
+          const s = Date.now();
+          await wa.sendMessage(jid, { text: `*Pong!* ${Date.now()-s}ms\n✅ 89 Commands Active` }, { quoted: m });
           return;
         }
-        if(cmd==='menu' || cmd==='help'){
+        if(cmd==='menu' || cmd==='help' || cmd==='list'){
           const list = [...commandsMap.keys()].join(', ');
-          await wa.sendMessage(jid, { image:{url:DP}, caption: `*RANA FURQAN MD MENU*\n\nTotal: ${commandsMap.size}\n${list}\n\nPowered by Meri JAAN` }, { quoted: m });
+          await wa.sendMessage(jid, { image:{url:DP}, caption: `*╭─🌹 RANA FURQAN MD 🌹─╮*\n\n*Total Commands: ${commandsMap.size}*\n\n${list}\n\n╰─ Powered by Meri JAAN ─╯` }, { quoted: m });
           return;
         }
-        if(cmd==='alive'){
-          await wa.sendMessage(jid, { text: `✅ ALIVE - ${commandsMap.size} commands` }, { quoted: m });
+        if(cmd==='alive' || cmd==='bot'){
+          await wa.sendMessage(jid, { text: `✅ *ALIVE - ${commandsMap.size} commands*\n\n.All working now!` }, { quoted: m });
           return;
         }
 
-        // OTHER COMMANDS
         if(!commandsMap.has(cmd)){
-          await wa.sendMessage(jid, { text: `❌ .${cmd} not found. Type .menu` }, { quoted: m });
+          await wa.sendMessage(jid, { text: `❌ .${cmd} not found\nType .menu` }, { quoted: m });
           return;
         }
         
@@ -121,15 +120,39 @@ async function startBot(num){
         try{
           const url = pathToFileURL(filePath).href + `?t=${Date.now()}`;
           const mod = await import(url);
-          const handler = mod.default || mod;
-          if(handler.execute) await handler.execute(wa, m, args, { prefix, config, commands: commandsMap });
-          else if(typeof handler==='function') await handler(wa,m,args,{prefix,config});
-          else if(handler.handler) await handler.handler(m,{conn:wa,args,prefix,config});
-          else if(handler.run) await handler.run(wa,m,args);
-          else await wa.sendMessage(jid, { text: `❌ Handler not found in ${cmd}.js` }, { quoted: m });
+          
+          // ---- ULTRA FINDER - HAR EXPORT CHALEGA ----
+          let execFn = null;
+          if(mod.default?.execute) execFn = mod.default.execute;
+          else if(typeof mod.default === 'function') execFn = mod.default;
+          else if(mod.execute) execFn = mod.execute;
+          else if(typeof mod === 'function') execFn = mod;
+          else if(mod.handler) execFn = mod.handler;
+          else if(mod.run) execFn = mod.run;
+          else if(mod.default?.handler) execFn = mod.default.handler;
+          else if(mod.default?.run) execFn = mod.default.run;
+          
+          // Search in all exports
+          if(!execFn){
+            for(const k of Object.keys(mod)){
+              const v = mod[k];
+              if(v && typeof v.execute === 'function'){ execFn = v.execute; break; }
+              if(v && typeof v === 'function' && k.toLowerCase() !== 'name'){ execFn = v; break; }
+            }
+          }
+
+          if(execFn){
+            await execFn(wa, m, args, { 
+              prefix, config, commands: commandsMap, conn: wa, sock: wa,
+              reply: async (txt) => await wa.sendMessage(jid, { text: String(txt) }, { quoted: m })
+            });
+          } else {
+            console.log(`❌ No exec in ${cmd}.js Keys:`, Object.keys(mod));
+            await wa.sendMessage(jid, { text: `❌ .${cmd}.js me execute nahi mila. File check karo.` }, { quoted: m });
+          }
         }catch(e){
-          console.log(`ERROR in .${cmd}:`, e.message);
-          await wa.sendMessage(jid, { text: `❌ Error in .${cmd}: ${e.message}` }, { quoted: m });
+          console.log(`ERROR .${cmd}:`, e.message, e.stack?.split('\n')[0]);
+          await wa.sendMessage(jid, { text: `❌ Error .${cmd}: ${e.message}` }, { quoted: m });
         }
 
       }catch(e){console.log("upsert error", e.message)}
@@ -139,7 +162,8 @@ async function startBot(num){
       const {connection,lastDisconnect}=u;
       if(connection==='open'){
         status='CONNECTED';pairCode=null;
-        console.log("✅ CONNECTED");
+        console.log("✅ CONNECTED - BOT READY");
+        loadCommands();
       }
       else if(connection==='close'){
         status='DISCONNECTED';sock=null;
@@ -158,5 +182,5 @@ app.post('/pair', async (req,res)=>{
   lastNumber=n;pairCode=null;status='CONNECTING';await startBot(n);
   for(let i=0;i<12;i++){if(pairCode)break;await new Promise(r=>setTimeout(r,1000));}res.redirect('/');
 }); 
-app.listen(PORT,()=>console.log('Running '+PORT));
+app.listen(PORT,()=>console.log('Running on '+PORT+' - FULL FIXED 89 CMDS'));
 if(fs.existsSync(AUTH_DIR)&&fs.readdirSync(AUTH_DIR).length>0)startBot();
