@@ -1,40 +1,153 @@
-import { config } from '../config.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const name = "menu";
-export async function execute(sock, msg, args, extra){
-  const jid = msg.key.remoteJid;
-  const DP = config.menuImage;
-  const dir = __dirname;
-  let files = [];
-  try{ files = fs.readdirSync(dir).filter(f=>f.endsWith('.js')).map(f=>f.replace('.js','')); }catch{ files = [...(extra?.commands?.keys()||[])]; }
+export const command = {
+  name: 'menu',
+  aliases: ['help', 'commands', 'list'],
+  category: 'MAIN',
+  description: 'Display all bot commands',
 
-  const cats = {
-    "🔥 DOWNLOADER": files.filter(f=>['play','song','video','yt','fb','tiktok','insta','apk','mediafire'].some(k=>f.includes(k))),
-    "👑 BOT": ["owner","alive","ping","botinfo","menu","help","restart","setprefix"],
-    "👥 GROUP": files.filter(f=>['tag','group','add','kick','promote','admin','announce'].some(k=>f.includes(k))),
-    "🛡️ SECURITY": ["antidelete","vv","vv2","vv3","autostatus"],
-    "😂 FUN": files.filter(f=>['love','ship','hug','kiss','slap','8ball','truth','dare','joke'].some(k=>f.includes(k))),
-    "🔧 TOOLS": files.filter(f=>!['play','video','owner','menu','vv','antidelete','tag','group','love'].some(k=>f.includes(k))).slice(0,30)
-  };
-  
-  // agar filter khali ho to saare dikhao
-  let allFound = Object.values(cats).flat();
-  let remaining = files.filter(f=>!allFound.includes(f));
-  if(remaining.length) cats["📦 OTHERS"] = remaining;
+  run: async (ctx) => {
+    const prefix = ctx.prefix || '.';
+    const config = ctx.config || {};
 
-  let txt = `*╭━━━〘 ${config.botName} 〙━━━╮*\n*┃* Total: ${files.length} Cmds\n*┃* Prefix: ${config.prefix}\n*┃* 🌹 Meri JAAN\n*╰━━━━━━━━━━━━━━╯*\n\n`;
-  for(const [cat, list] of Object.entries(cats)){
-    if(!list.length) continue;
-    txt += `*╭─ ${cat} ─*\n`;
-    txt += `*│* ${list.sort().map(c=>`.${c}`).join('\n*│* ')}\n`;
-    txt += `*╰───────────────*\n\n`;
+    const botName = 'RANA FURQAN MD';
+    const ownerName = config.ownerName || 'RANA FURQAN';
+    const channelUrl =
+      config.channelUrl ||
+      process.env.CHANNEL_URL ||
+      'https://whatsapp.com/';
+
+    const commandList = Array.isArray(ctx.commandList)
+      ? ctx.commandList
+      : [];
+
+    const groups = {
+      '🤖 AI ASSISTANT': ['gpt', 'ai', 'chatgpt'],
+      '🎵 MUSIC & VIDEO': ['play', 'video', 'song'],
+      '📺 DRAMA & SEARCH': ['drama', 'google', 'search'],
+      '💖 FUN & ENTERTAINMENT': ['joke', 'love', 'kiss'],
+      '👁️ VIEW-ONCE MEDIA': ['vv', 'vv2', 'vv3'],
+      '🛡️ SECURITY & PROTECTION': [
+        'antidelete',
+        'antilink',
+        'antistatus',
+        'anticall'
+      ],
+      '⚙️ AUTO FEATURES': [
+        'autoreact',
+        'autostatus',
+        'statusview',
+        'statuslike',
+        'alwaysonline',
+        'online'
+      ],
+      '📌 GENERAL COMMANDS': [
+        'menu',
+        'help',
+        'ping',
+        'alive',
+        'owner'
+      ]
+    };
+
+    const commands = new Map();
+
+    for (const item of commandList) {
+      if (!item || !item.name) continue;
+
+      const name = String(item.name).toLowerCase();
+      commands.set(name, item);
+
+      for (const alias of item.aliases || []) {
+        const aliasName = String(alias).toLowerCase();
+
+        if (!commands.has(aliasName)) {
+          commands.set(aliasName, item);
+        }
+      }
+    }
+
+    const output = [];
+    const printed = new Set();
+
+    for (const [heading, names] of Object.entries(groups)) {
+      const entries = [];
+
+      for (const name of names) {
+        const item = commands.get(name);
+
+        if (!item) continue;
+
+        const actualName = String(item.name).toLowerCase();
+
+        if (printed.has(actualName)) continue;
+
+        printed.add(actualName);
+        entries.push(`${prefix}${actualName}`);
+      }
+
+      if (!entries.length) continue;
+
+      output.push(`\n╭━━〔 ${heading} 〕━━╮`);
+
+      for (const entry of entries) {
+        output.push(`┃ ✦ ${entry}`);
+      }
+
+      output.push('╰━━━━━━━━━━━━━━╯');
+    }
+
+    const extra = [];
+
+    for (const item of commandList) {
+      if (!item || !item.name) continue;
+
+      const name = String(item.name).toLowerCase();
+
+      if (printed.has(name)) continue;
+
+      printed.add(name);
+      extra.push(`${prefix}${name}`);
+    }
+
+    if (extra.length) {
+      output.push('\n╭━━〔 ✨ MORE COMMANDS 〕━━╮');
+
+      for (const name of extra.sort()) {
+        output.push(`┃ ✦ ${name}`);
+      }
+
+      output.push('╰━━━━━━━━━━━━━━━━╯');
+    }
+
+    const menuText = `
+╭━━━━━━━━━━━━━━━━━━╮
+┃ 🌹 RANA FURQAN MD 🌹
+┃ PREMIUM COMMAND CENTER
+╰━━━━━━━━━━━━━━━━━━╯
+
+┏━━━━━━━━━━━━━━━━━━
+┃ 👑 OWNER: ${ownerName}
+┃ ⚡ PREFIX: ${prefix}
+┃ 📚 COMMANDS: ${commandList.length}
+┗━━━━━━━━━━━━━━━━━━
+
+${output.join('\n')}
+
+╭━━━━━━━━━━━━━━━━━━╮
+┃ 🌹 POWERED BY
+┃    Meri JAAN 🌹
+╰━━━━━━━━━━━━━━━━━━╯
+
+📢 CHANNEL:
+${channelUrl}
+`;
+
+    return ctx.sock.sendMessage(
+      ctx.jid,
+      { text: menuText },
+      { quoted: ctx.m }
+    );
   }
-  txt += `_Use .play / .video name_\n_Meri JAAN 🌹_`;
-  
-  await sock.sendMessage(jid,{image:{url:DP},caption:txt},{quoted:msg}).catch(async()=>{ await sock.sendMessage(jid,{text:txt},{quoted:msg}); });
-}
-export default { name, execute };
+};
+
+export default { command };
