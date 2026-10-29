@@ -1,14 +1,9 @@
+import { command as playCommand } from './play.js';
+
 export const command = {
+  ...playCommand,
   name: 'song',
-  category: 'DOWNLOADER',
-  description: 'Download song',
-  run: async (ctx) => {
-    // Yahan tumhari API ka code
-    const query = ctx.args.join(' ');
-    if(!query) return ctx.reply('Gaane ka naam likho');
-    
-    // API call yahan
-    const apiUrl = `https://tumhari-api.com/song?q=${query}`;
-    // ... baaki code
-  }
+  aliases: ['music', 'mp3'],
+  description: 'Search and send audio using the configured public downloader fallbacks',
+  run: playCommand.run
 };
