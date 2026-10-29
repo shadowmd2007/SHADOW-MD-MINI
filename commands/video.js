@@ -2,102 +2,95 @@ export const command = {
   name: 'video',
   aliases: ['ytv', 'ytmp4'],
   category: 'DOWNLOADER',
-  description: 'Download video',
+  description: 'Search and send video',
   run: async (ctx) => {
-    const query = ctx.args.join(' ');
-    const { sock, jid, m } = ctx;
-    if (!query) return await ctx.reply(`*Example:* ${ctx.prefix}video Pasoori`);
+    const query = ctx.args.join(' ').trim();
+
+    if (!query) {
+      return ctx.reply(`🎬 Example: ${ctx.prefix}video cricket highlights`);
+    }
+
+    await ctx.reply(`🔎 Searching video: *${query}*`);
+
+    let videoPage = '';
+    let title = query;
 
     try {
-      await sock.sendMessage(jid, { react: { text: '🎬', key: m.key } });
-      await ctx.reply(`🔍 *"${query}"* search...`);
+      const r = await fetch(
+        `https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`,
+        { signal: AbortSignal.timeout(12000) }
+      );
 
-      let videoUrl = '', title = query, thumbnail = '', channel = '';
-
-      try {
-        const r1 = await fetch(`https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`);
-        if (!r1.ok) throw new Error(`Search API HTTP ${r1.status}`);
-        const j1 = await r1.json();
-        const list = Array.isArray(j1?.result) ? j1.result : Array.isArray(j1?.results) ? j1.results : Array.isArray(j1?.data) ? j1.data : [];
+      if (r.ok) {
+        const j = await r.json();
+        const list = Array.isArray(j.result) ? j.result
+          : Array.isArray(j.results) ? j.results
+          : Array.isArray(j.data) ? j.data : [];
         const item = list.find(x => x && (x.url || x.videoUrl || x.link));
 
         if (item) {
-          videoUrl = item.url || item.videoUrl || item.link;
+          videoPage = item.url || item.videoUrl || item.link;
           title = item.title || item.name || query;
-          thumbnail = item.thumbnail || item.image || item.thumbnails?.[0]?.url || '';
-          channel = item.author || item.channel || item.uploader || '';
         }
+      }
+    } catch {}
+
+    if (!videoPage) {
+      return ctx.reply('❌ Video search service se result nahi mila.');
+    }
+
+    const apis = [
+      `https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoPage)}`,
+      `https://api.vreden.my.id/api/ytmp4?url=${encodeURIComponent(videoPage)}`
+    ];
+
+    function findUrl(v, depth = 0) {
+      if (!v || depth > 5) return '';
+      if (typeof v === 'string') return /^https?:\/\//i.test(v) ? v : '';
+      if (Array.isArray(v)) {
+        for (const x of v) {
+          const found = findUrl(x, depth + 1);
+          if (found) return found;
+        }
+      } else if (typeof v === 'object') {
+        for (const k of ['downloadUrl', 'download_url', 'url', 'download', 'video', 'link']) {
+          const found = findUrl(v[k], depth + 1);
+          if (found) return found;
+        }
+        for (const val of Object.values(v)) {
+          const found = findUrl(val, depth + 1);
+          if (found) return found;
+        }
+      }
+      return '';
+    }
+
+    let videoUrl = '';
+
+    for (const api of apis) {
+      try {
+        const r = await fetch(api, { signal: AbortSignal.timeout(15000) });
+        if (!r.ok) continue;
+        videoUrl = findUrl(await r.json());
+        if (videoUrl) break;
       } catch {}
+    }
 
-      if (!videoUrl) return await ctx.reply('❌ Video search failed. Search API ne valid result nahi diya.');
+    if (!videoUrl) {
+      return ctx.reply('❌ Video result mila, lekin download service ne link nahi diya.');
+    }
 
-      if (thumbnail) {
-        try {
-          await sock.sendMessage(jid, {
-            image: { url: thumbnail },
-            caption: `*🎬 ${title}*\n*📺 ${channel}*\n\n📥 Video bhej raha hun...`
-          }, { quoted: m });
-        } catch {}
-      }
-
-      let videoDownloadUrl = '';
-      const apis = [
-        `https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
-        `https://api.vreden.my.id/api/ytmp4?url=${encodeURIComponent(videoUrl)}`,
-        `https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(videoUrl)}`
-      ];
-
-      for (const api of apis) {
-        try {
-          const r = await fetch(api);
-          if (!r.ok) continue;
-          const j = await r.json();
-
-          const findUrl = (v, depth = 0) => {
-            if (!v || depth > 5) return '';
-            if (typeof v === 'string') return /^https?:\/\//i.test(v) ? v : '';
-            if (Array.isArray(v)) {
-              for (const x of v) {
-                const u = findUrl(x, depth + 1);
-                if (u) return u;
-              }
-              return '';
-            }
-            if (typeof v === 'object') {
-              for (const k of ['downloadUrl', 'download_url', 'url', 'download', 'video', 'link']) {
-                const u = findUrl(v[k], depth + 1);
-                if (u) return u;
-              }
-              for (const val of Object.values(v)) {
-                const u = findUrl(val, depth + 1);
-                if (u) return u;
-              }
-            }
-            return '';
-          };
-
-          const url = findUrl(j?.result || j?.data || j);
-          if (url) {
-            videoDownloadUrl = url;
-            break;
-          }
-        } catch {}
-      }
-
-      if (!videoDownloadUrl) throw new Error('All APIs failed');
-
-      const caption = `*🎬 Title:* ${title}\n*📺 Channel:* ${channel}\n\n🌹 *SHADOW MD* 💖`;
-      await sock.sendMessage(jid, {
-        video: { url: videoDownloadUrl },
+    try {
+      await ctx.sock.sendMessage(ctx.jid, {
+        video: { url: videoUrl },
         mimetype: 'video/mp4',
-        fileName: `${title}.mp4`,
-        caption
-      }, { quoted: m });
-
-      await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
-    } catch (e) {
-      console.log('VIDEO DOWNLOAD ERROR:', e?.message || e);
-      await ctx.reply('❌ Video download failed. Download service unavailable ya response badal gaya hai.');
+        fileName: `${title.replace(/[\\/:*?"<>|]/g, '_')}.mp4`,
+        caption: `🎬 *${title}*\n\n💖 SHADOW MD`
+      }, { quoted: ctx.m });
+    } catch {
+      return ctx.reply('❌ Video send nahi hui. File size ya download link ka issue ho sakta hai.');
     }
   }
 };
+
+export default { command };
