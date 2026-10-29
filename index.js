@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import pino from 'pino';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import baileys from '@whiskeysockets/baileys';
 import { config } from './config.js';
 
@@ -16,6 +16,7 @@ const AUTH_DIR = path.resolve(__dirname, './auth');
 const logger = pino({ level: 'silent' });
 
 let sock=null,status='DISCONNECTED',pairCode=null,pairTime=0,lastNumber='';
+let commandsMap = new Map(); // Cache for commands
 
 app.use(express.urlencoded({extended:true})); 
 app.use(express.json());
@@ -43,7 +44,32 @@ function html(){
 }
 app.get('/',(req,res)=>res.send(html()));
 
-// ✅ BUILT-IN COMMANDS - COMMANDS FOLDER FAIL BHI HO TO CHALEGA
+// COMMANDS LOADER - RECURSIVE & FIXED
+function loadAllCommands(){
+  commandsMap.clear();
+  const dir = path.join(__dirname,'commands');
+  if(!fs.existsSync(dir)){
+    console.log("❌ commands folder not found at", dir);
+    return;
+  }
+  function scanFolder(folder){
+    const items = fs.readdirSync(folder);
+    for(const item of items){
+      const full = path.join(folder, item);
+      const stat = fs.statSync(full);
+      if(stat.isDirectory()){
+        scanFolder(full);
+      } else if(item.toLowerCase().endsWith('.js')){
+        const name = path.basename(item, '.js').toLowerCase();
+        commandsMap.set(name, full);
+      }
+    }
+  }
+  scanFolder(dir);
+  console.log(`✅ Loaded ${commandsMap.size} commands:`, [...commandsMap.keys()].join(', '));
+}
+loadAllCommands();
+
 async function handleCoreCommands(cmd, wa, m, args){
   const jid = m.key.remoteJid;
   const DP = getConfigDP();
@@ -51,52 +77,62 @@ async function handleCoreCommands(cmd, wa, m, args){
   if(cmd==='ping' || cmd==='p'){
     const start = Date.now();
     await wa.sendMessage(jid, { text: `*Pong!*\n\n⚡ Speed: ${Date.now()-start}ms\n✅ Bot Active\n\n🌹 Powered by Meri JAAN` }, { quoted: m });
-    console.log("✅ PING REPLIED");
     return true;
   }
-  
   if(cmd==='alive' || cmd==='bot' || cmd==='test'){
     await wa.sendMessage(jid, { image:{url:DP}, caption: `*✅ RANA FURQAN MD ALIVE!*\n\n🤖 Status: ONLINE\n⚡ Prefix: .\n👑 Owner: RANA FURQAN\n\n🌹 Powered by Meri JAAN` }, { quoted: m });
     return true;
   }
-  
   if(cmd==='menu' || cmd==='help' || cmd==='list'){
-    const dir = path.join(__dirname,'commands');
-    let list = "❌ commands folder not found";
-    if(fs.existsSync(dir)){
-      const files = fs.readdirSync(dir).filter(f=>f.endsWith('.js')).map(f=>f.replace('.js',''));
-      list = files.slice(0,90).join(', ');
-    }
+    let list = [...commandsMap.keys()].slice(0,100).join(', ');
     await wa.sendMessage(jid, { 
       image:{url:DP},
-      caption: `*╭─🌹 RANA FURQAN MD MENU 🌹─╮*\n\n*Core:*\n.ping - Bot speed\n.alive - Bot status\n.menu - This list\n\n*All Commands (${fs.existsSync(dir)?fs.readdirSync(dir).length:0}):*\n${list}\n\n*🌹 Powered by Meri JAAN*\n╰─────────────────╯`
+      caption: `*╭─🌹 RANA FURQAN MD MENU 🌹─╮*\n\n*Core:*\n.ping - Bot speed\n.alive - Bot status\n.menu - This list\n\n*All Commands (${commandsMap.size}):*\n${list}\n\n*🌹 Powered by Meri JAAN*\n╰─────────────────╯`
     }, { quoted: m });
     return true;
   }
-  
-  return false; // core mein nahi mila to commands folder check karenge
+  return false;
 }
 
 async function UNIVERSAL_RUN(cmdName, wa, m, args, prefix){
-  // Pehle core commands check karo
   if(await handleCoreCommands(cmdName, wa, m, args)) return true;
   
-  const dir = path.join(__dirname,'commands');
-  if(!fs.existsSync(dir)) return false;
-  const files = fs.readdirSync(dir).filter(f=>f.toLowerCase().endsWith('.js'));
-  const targetFile = files.find(f=> f.toLowerCase() === `${cmdName.toLowerCase()}.js`);
-  if(!targetFile) return false;
+  const key = cmdName.toLowerCase();
+  if(!commandsMap.has(key)) return false;
   
-  const fullPath = path.join(dir, targetFile);
+  const fullPath = commandsMap.get(key);
   try{
-    const mod = await import(`file://${fullPath}?t=${Date.now()}`);
+    // FIXED IMPORT - use pathToFileURL
+    const fileUrl = pathToFileURL(fullPath).href + `?update=${Date.now()}`;
+    const mod = await import(fileUrl);
     const handler = mod.default || mod;
-    if(handler?.execute){ await handler.execute(wa, m, args, { prefix, config }); return true; }
-    if(typeof handler==='function'){ await handler(wa, m, args, { conn: wa, prefix, config }); return true; }
-    if(handler?.handler){ await handler.handler(m,{conn:wa,args,prefix,config}); return true; }
-    if(handler?.run){ await handler.run(wa,m,args); return true; }
+
+    // Try all possible export patterns
+    if(handler?.execute){
+      await handler.execute(wa, m, args, { prefix, config, conn: wa, sock: wa });
+      return true;
+    }
+    if(typeof handler === 'function'){
+      await handler(wa, m, args, { conn: wa, prefix, config, sock: wa });
+      return true;
+    }
+    if(handler?.handler){
+      await handler.handler(m,{conn:wa,args,prefix,config,sock:wa});
+      return true;
+    }
+    if(handler?.run){
+      await handler.run(wa,m,args, { prefix, config });
+      return true;
+    }
+    // For commands that export { command, execute } etc
+    for(const val of Object.values(handler)){
+      if(typeof val === 'function'){
+        try{ await val(wa,m,args,{conn:wa,prefix,config}); return true; }catch{}
+      }
+    }
+
   }catch(e){
-    console.log(`❌ ${targetFile} Error:`, e.message);
+    console.log(`❌ ${cmdName} Error:`, e.message, e.stack);
     await wa.sendMessage(m.key.remoteJid, { text: `❌ .${cmdName} Error: ${e.message}` }, { quoted: m });
     return true;
   }
@@ -125,9 +161,14 @@ async function startBot(num){
         const m=upsert.messages[0];
         if(!m.message) return;
         if(m.key.remoteJid==='status@broadcast') return;
-        const text=m.message.conversation||m.message.extendedTextMessage?.text||m.message.imageMessage?.caption||m.message.videoMessage?.caption||"";
+        
+        // FIXED MESSAGE EXTRACT - ephemeral + viewOnce support
+        let text = m.message.conversation || m.message.extendedTextMessage?.text || m.message.imageMessage?.caption || m.message.videoMessage?.caption || "";
+        // ephemeral
+        if(!text) text = m.message.ephemeralMessage?.message?.extendedTextMessage?.text || "";
         if(!text) return;
-        console.log(`📩 Message Received: ${text} | From: ${m.key.remoteJid} | fromMe: ${m.key.fromMe}`);
+
+        console.log(`📩 ${text} | From: ${m.key.remoteJid}`);
         const prefix=config.prefix||".";
         if(!text.startsWith(prefix)) return;
         const parts=text.slice(prefix.length).trim().split(/ +/);
@@ -140,17 +181,18 @@ async function startBot(num){
           console.log(`❌ No handler for .${cmd}`);
           await wa.sendMessage(m.key.remoteJid, { text: `❌ Command .${cmd} not found\nType .menu` }, { quoted: m });
         }
-      }catch(e){console.log("upsert error:", e.message, e.stack)}
+      }catch(e){console.log("upsert error:", e.message)}
     });
     wa.ev.on('connection.update',async (u)=>{
       const {connection,lastDisconnect}=u;
       if(connection==='open'){
         status='CONNECTED';pairCode=null;
         console.log("✅ CONNECTED - READY TO REPLY");
+        loadAllCommands(); // Reload on connect
         setTimeout(async ()=>{
           try{
-            await wa.sendMessage(wa.user.id, { text: `✅ *BOT CONNECTED!*\n\nAb .ping likho - 100% reply ayega!\n\n🌹 Powered by Meri JAAN` });
-          }catch(e){console.log("conn msg err",e.message)}
+            await wa.sendMessage(wa.user.id, { text: `✅ *BOT CONNECTED!*\n\nTotal Commands: ${commandsMap.size}\nAb koi bhi command try karo!\n\n🌹 Powered by Meri JAAN` });
+          }catch(e){}
         },2000);
       }
       else if(connection==='close'){
@@ -169,6 +211,6 @@ app.post('/pair', async (req,res)=>{
   const n=normNum(req.body?.num);if(!n||n.length<11)return res.send('Invalid <a href="/">Back</a>');
   lastNumber=n;pairCode=null;status='CONNECTING';await startBot(n);
   for(let i=0;i<12;i++){if(pairCode)break;await new Promise(r=>setTimeout(r,1000));}res.redirect('/');
-});
-app.listen(PORT,()=>console.log('Running '+PORT+' - CORE COMMANDS BUILT-IN 🌹'));
+}); 
+app.listen(PORT,()=>console.log('Running '+PORT+' - FIXED VERSION 🌹'));
 if(fs.existsSync(AUTH_DIR)&&fs.readdirSync(AUTH_DIR).length>0)startBot();
