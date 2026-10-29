@@ -20,7 +20,7 @@ let sock=null,status='DISCONNECTED',pairCode=null,pairTime=0,lastNumber='';
 let messageStore = new Map();
 let commandsMap = new Map();
 let antiDeleteEnabled = false;
-let alwaysOnline = true; // DEFAULT ONLINE
+let alwaysOnline = true;
 let onlineInterval = null;
 
 try{ if(fs.existsSync(ANTIDELETE_FILE)) antiDeleteEnabled = JSON.parse(fs.readFileSync(ANTIDELETE_FILE,'utf8')).enabled; }catch{}
@@ -29,7 +29,7 @@ try{ if(fs.existsSync(ONLINE_FILE)) alwaysOnline = JSON.parse(fs.readFileSync(ON
 app.use(express.urlencoded({extended:true})); app.use(express.json());
 function cleanAuth(){ try{if(fs.existsSync(AUTH_DIR))fs.rmSync(AUTH_DIR,{recursive:true,force:true})}catch{} try{fs.mkdirSync(AUTH_DIR,{recursive:true})}catch{} }
 function normNum(v){ let n=String(v||'').replace(/\D/g,''); if(n.startsWith('0'))n='92'+n.slice(1); return n; }
-function getDP(){ if(config.menuImage?.startsWith('http')) return config.menuImage; return "https://i.ibb.co/BHfCmfbw/jawadmd.jpg"; }
+function getDP(){ if(config.menuImage?.startsWith('http')) return config.menuImage; if(config.botImage?.startsWith('http')) return config.botImage; return "https://i.ibb.co/BHfCmfbw/jawadmd.jpg"; }
 function loadCommands(){ commandsMap.clear(); const dir=path.join(__dirname,'commands'); if(!fs.existsSync(dir)) return; const scan=(d)=>{ for(const f of fs.readdirSync(d)){ const p=path.join(d,f); if(fs.statSync(p).isDirectory()) scan(p); else if(f.endsWith('.js')) commandsMap.set(f.replace('.js','').toLowerCase(),p);} }; scan(dir); console.log(`✅ ${commandsMap.size} cmds loaded`); }
 loadCommands();
 function saveAntiDelete(){ try{ fs.writeFileSync(ANTIDELETE_FILE, JSON.stringify({enabled: antiDeleteEnabled})); }catch{} }
@@ -41,26 +41,37 @@ function setOnlinePresence(wa, online){
     if(online){
       wa.sendPresenceUpdate('available');
       onlineInterval = setInterval(()=>{ try{ wa.sendPresenceUpdate('available'); }catch{} }, 25000);
-      console.log("🟢 ALWAYS ONLINE ON");
     } else {
       wa.sendPresenceUpdate('unavailable');
-      console.log("⚫ ALWAYS ONLINE OFF");
     }
-  }catch(e){ console.log("presence err", e.message); }
+  }catch{}
 }
 
 function html(){
   const valid=pairCode&&Date.now()-pairTime<65000; const DP=getDP();
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>RANA MD</title><style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;color:#fff;padding:20px;font-family:Arial}.card{width:100%;max-width:430px;background:#111;border:2px solid #ff0040;border-radius:28px;padding:28px;text-align:center}.dp{width:130px;height:130px;border-radius:50%;border:3px solid #ff0040;object-fit:cover}.status{padding:7px 18px;border-radius:20px;font-weight:700;display:inline-block;margin:10px 0}.CONNECTED{background:#0f0;color:#000}.DISCONNECTED{background:#f00}input,button{width:100%;padding:14px;margin-top:12px;border-radius:14px}input{background:#000;color:#fff;border:1px solid #333;text-align:center}button{background:#ff0040;color:#fff;border:none;font-weight:700}.online{margin-top:10px;padding:8px;border-radius:10px;background:#222;font-size:13px}</style></head><body><div class="card"><img class="dp" src="${DP}"><h1>RANA FURQAN MD</h1><div style="color:#ff4d6d">🌹 Meri JAAN 🌹</div><div class="status ${status}">${status}</div><div class="online">Online: ${alwaysOnline?'🟢 ON':'⚫ OFF'} | ${commandsMap.size} Cmds</div>${status==='CONNECTED'?`<div style="color:#0f0;margin-top:10px">✅ ONLINE</div>`:`<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="92300..." required><button>GET CODE</button></form>${valid?`<h1 style="color:#0f0;letter-spacing:5px">${pairCode}</h1>`:''}`}</div></body></html>`;
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>RANA MD</title><style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;color:#fff;padding:20px;font-family:Arial}.card{width:100%;max-width:430px;background:#111;border:2px solid #ff0040;border-radius:28px;padding:28px;text-align:center}.dp{width:130px;height:130px;border-radius:50%;border:3px solid #ff0040;object-fit:cover}.status{padding:7px 18px;border-radius:20px;font-weight:700;display:inline-block;margin:10px 0}.CONNECTED{background:#0f0;color:#000}.DISCONNECTED{background:#f00}input,button{width:100%;padding:14px;margin-top:12px;border-radius:14px}input{background:#000;color:#fff;border:1px solid #333;text-align:center}button{background:#ff0040;color:#fff;border:none;font-weight:700}.online{margin-top:10px;padding:8px;border-radius:10px;background:#222;font-size:13px}</style></head><body><div class="card"><img class="dp" src="${DP}"><h1>RANA FURQAN MD</h1><div style="color:#ff4d6d">🌹 Meri JAAN 🌹</div><div class="status ${status}">${status}</div><div class="online">Online: ${alwaysOnline?'🟢 ON':'⚫ OFF'} | ${commandsMap.size} Cmds | Anti: ${antiDeleteEnabled?'ON':'OFF'}</div>${status==='CONNECTED'?`<div style="color:#0f0;margin-top:10px">✅ ONLINE</div>`:`<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="92300..." required><button>GET CODE</button></form>${valid?`<h1 style="color:#0f0;letter-spacing:5px">${pairCode}</h1>`:''}`}</div></body></html>`;
 }
 app.get('/',(req,res)=>res.send(html()));
 
 function getSender(m){ return (m.key.participant || m.key.remoteJid || "").replace(/@.*/,'').replace(/\D/g,''); }
+
+// === FIXED OWNER CHECK - STRING YA ARRAY DONO CHALEGA ===
+function getOwnerList(){
+  let list = config.ownerNumber;
+  if(!list) return [];
+  if(typeof list === 'string') list = [list];
+  if(!Array.isArray(list)) list = [String(list)];
+  return list.map(n=> String(n).replace(/\D/g,'')).filter(Boolean);
+}
 function isOwner(m){
   const sender = getSender(m);
-  const owners = (config.ownerNumber || []).map(n=> String(n).replace(/\D/g,''));
+  const owners = getOwnerList();
   if(owners.length===0) return true;
-  return owners.some(o=> sender.endsWith(o.slice(-10)) || o.endsWith(sender.slice(-10)));
+  const shortSender = sender.slice(-10);
+  return owners.some(o=> {
+    const shortO = o.slice(-10);
+    return sender.endsWith(shortO) || shortSender === shortO || o.includes(shortSender) || shortO.includes(shortSender);
+  });
 }
 
 async function startBot(num){
@@ -83,36 +94,49 @@ async function startBot(num){
       
       const args = text.slice(config.prefix.length).trim().split(/ +/); 
       const cmd = args.shift().toLowerCase(); if(!cmd) return;
+      console.log(`CMD: .${cmd}`);
 
-      // ========== ONLINE / OFFLINE COMMAND ==========
-      if(cmd==='online' || cmd==='offline' || cmd==='alwaysonline'){
+      // ONLINE ON/OFF
+      if(cmd==='online' || cmd==='offline'){
         if(!isOwner(m)) return;
-        const sub = args[0]?.toLowerCase() || cmd;
-        if(sub==='on' || cmd==='online'){
+        const sub = args[0]?.toLowerCase();
+        if(cmd==='online' && (!sub || sub==='on')){
           alwaysOnline = true; saveOnline(); setOnlinePresence(wa, true);
-          await wa.sendMessage(jid,{text:`🟢 *ONLINE ON*\n\nAb bot har time Online show hoga\n🌹 Meri JAAN`},{quoted:m});
-        } else if(sub==='off' || cmd==='offline'){
+          await wa.sendMessage(jid,{text:`🟢 *ONLINE ON*\nHar time Online 🌹`},{quoted:m});
+        } else if(cmd==='offline' || (cmd==='online' && sub==='off')){
           alwaysOnline = false; saveOnline(); setOnlinePresence(wa, false);
-          await wa.sendMessage(jid,{text:`⚫ *ONLINE OFF*\n\nAb bot Offline show hoga\n🌹`},{quoted:m});
+          await wa.sendMessage(jid,{text:`⚫ *ONLINE OFF*\nAb Offline 🌹`},{quoted:m});
         } else {
-          await wa.sendMessage(jid,{text:`*Online Status:* ${alwaysOnline?'🟢 ON':'⚫ OFF'}\n\n.online on - Har time Online\n.online off - Offline`},{quoted:m});
+          await wa.sendMessage(jid,{text:`*Online:* ${alwaysOnline?'🟢 ON':'⚫ OFF'}\n.online on / .online off`},{quoted:m});
         }
         return;
       }
 
-      // OWNER ONLY: vv2, vv3, antidelete
+      // OWNER ONLY
       const ownerOnly = ['vv2','vv','vv3','tovv','antidelete','antidel'];
       if(ownerOnly.includes(cmd) && !isOwner(m)) return;
 
       if(cmd==='antidelete' || cmd==='antidel'){
         const sub = args[0]?.toLowerCase();
-        if(sub==='on'){ antiDeleteEnabled=true; saveAntiDelete(); await wa.sendMessage(jid,{text:`✅ Antidelete ON - Sirf tumhari private pe`},{quoted:m}); }
+        if(sub==='on'){ antiDeleteEnabled=true; saveAntiDelete(); await wa.sendMessage(jid,{text:`✅ Antidelete ON`},{quoted:m}); }
         else if(sub==='off'){ antiDeleteEnabled=false; saveAntiDelete(); await wa.sendMessage(jid,{text:`❌ Antidelete OFF`},{quoted:m}); }
-        else { await wa.sendMessage(jid,{text:`*Antidelete:* ${antiDeleteEnabled?'ON':'OFF'}`},{quoted:m}); }
+        else { await wa.sendMessage(jid,{text:`*Antidelete:* ${antiDeleteEnabled?'ON':'OFF'}\n.antidelete on / off`},{quoted:m}); }
         return;
       }
 
-      // ========== SAB COMMANDS CHALAO - TUMHARA MENU.JS BHI ==========
+      // BUILT-IN PING ALIVE - 100% WORKING
+      if(cmd==='ping'){
+        const start = Date.now();
+        await wa.sendMessage(jid,{text:`*PONG!* 🏓\n${Date.now()-start}ms\n🟢 Online: ${alwaysOnline?'ON':'OFF'}\n📦 ${commandsMap.size} Cmds\n\n🌹 Meri JAAN`},{quoted:m});
+        return;
+      }
+      if(cmd==='alive'){
+        const DP=getDP();
+        await wa.sendMessage(jid,{image:{url:DP},caption:`*${config.botName || 'RANA MD'} ALIVE*\n✅ Online\n🟢 Presence: ${alwaysOnline?'ON':'OFF'}\n📦 ${commandsMap.size} Cmds\n🌹 Meri JAAN`},{quoted:m}).catch(async()=>{ await wa.sendMessage(jid,{text:`*ALIVE* ✅\n📦 ${commandsMap.size} Cmds`},{quoted:m}); });
+        return;
+      }
+
+      // SAB COMMANDS FOLDER WALE
       if(commandsMap.has(cmd)){
         try{
           const fp=commandsMap.get(cmd);
@@ -126,24 +150,14 @@ async function startBot(num){
             await mod.default.execute(wa, m, args, extra);
             return;
           }
-          if(mod.command?.run){
-            await mod.command.run({ args, sock: wa, jid, m, prefix: config.prefix, reply: async (t)=>{ await wa.sendMessage(jid,{text:t},{quoted:m}); } });
-            return;
-          }
         }catch(e){ 
-          console.log(`CMD ${cmd} ERR`, e);
-          await wa.sendMessage(jid,{text:`❌ .${cmd} me error: ${e.message}`},{quoted:m});
-        }
-      } else {
-        // Agar command nahi mila to bhi reply do
-        if(['ping','alive','menu','owner'].includes(cmd)){
-          await wa.sendMessage(jid,{text:`❌ ${cmd}.js file me error hai, index se fallback chal raha\n\nPing OK: Bot Online ✅\nTotal Cmds: ${commandsMap.size}`},{quoted:m});
+          console.log(`CMD ${cmd} FILE ERR`, e.message);
+          await wa.sendMessage(jid,{text:`❌ .${cmd} me error:\n${e.message}\n\nFile check karo`},{quoted:m});
         }
       }
     }catch(e){console.log("upsert err",e)}
   });
 
-  // ANTIDELETE SIRF PRIVATE
   wa.ev.on('messages.update', async (updates)=>{
     try{
       if(!antiDeleteEnabled) return;
@@ -153,7 +167,7 @@ async function startBot(num){
           if(!stored?.message) continue;
           const privateJid = wa.user.id;
           let txt = stored.message.conversation || stored.message.extendedTextMessage?.text || "[Media]";
-          await wa.sendMessage(privateJid, { text: `*🗑️ DELETED*\nFrom: ${stored.key.remoteJid}\nMsg: ${txt}\n🌹 Sirf tum` });
+          await wa.sendMessage(privateJid, { text: `*🗑️ DELETED*\nFrom: ${stored.key.remoteJid}\nMsg: ${txt}\n\n🌹 Sirf tum` });
         }
       }
     }catch{}
@@ -164,7 +178,7 @@ async function startBot(num){
     if(connection==='open'){ 
       status='CONNECTED';pairCode=null; loadCommands(); 
       setOnlinePresence(wa, alwaysOnline);
-      console.log(`✅ ONLINE - ${commandsMap.size} CMDS - ONLINE ${alwaysOnline?'ON':'OFF'}`); 
+      console.log(`✅ ONLINE - ${commandsMap.size} CMDS`); 
     } else if(connection==='close'){ 
       status='DISCONNECTED';sock=null; 
       if(onlineInterval) clearInterval(onlineInterval);
