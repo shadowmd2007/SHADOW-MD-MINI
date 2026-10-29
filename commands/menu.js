@@ -1,62 +1,40 @@
 import { config } from '../config.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const name = "menu";
-export const category = "main";
-export const desc = "Show all commands category wise";
-
-export async function execute(sock, msg, args, extra) {
+export async function execute(sock, msg, args, extra){
   const jid = msg.key.remoteJid;
-  const DP = config.menuImage || config.botImage || "https://i.ibb.co/BHfCmfbw/jawadmd.jpg";
-  
-  // TUMHARI SARI 89 COMMANDS CATEGORY WISE
-  const categories = {
-    "🔥 DOWNLOADER": ["play", "song", "video", "ytmp3", "ytmp4", "fb", "tiktok", "insta", "apk", "mediafire"],
-    "👑 OWNER & BOT": ["owner", "alive", "ping", "botinfo", "restart", "update", "setprefix", "mode"],
-    "👥 GROUP": ["add", "kick", "promote", "demote", "tagall", "hidetag", "group", "link", "revoke", "announce", "admins"],
-    "🛡️ SECURITY": ["antidelete", "antidel", "autostatus", "autoview", "antivv", "vv", "vv2"],
-    "😂 FUN & LOVE": ["love", "ship", "hug", "kiss", "slap", "8ball", "truth", "dare", "joke", "fact", "quote", "compliment"],
-    "🎮 GAMES": ["roll", "coinflip", "choose", "count", "whosmi"],
-    "🔧 TOOLS": ["sticker", "toimg", "fancy", "reverse", "base64", "binary", "calc", "flip", "id", "time", "date", "week", "year", "speed", "test"],
-    "📥 EXTRA": ["autoplay", "autovideo", "av", "channel", "demo", "del", "bot", "min", "v3", "vv2", "vv"]
+  const DP = config.menuImage;
+  const dir = __dirname;
+  let files = [];
+  try{ files = fs.readdirSync(dir).filter(f=>f.endsWith('.js')).map(f=>f.replace('.js','')); }catch{ files = [...(extra?.commands?.keys()||[])]; }
+
+  const cats = {
+    "🔥 DOWNLOADER": files.filter(f=>['play','song','video','yt','fb','tiktok','insta','apk','mediafire'].some(k=>f.includes(k))),
+    "👑 BOT": ["owner","alive","ping","botinfo","menu","help","restart","setprefix"],
+    "👥 GROUP": files.filter(f=>['tag','group','add','kick','promote','admin','announce'].some(k=>f.includes(k))),
+    "🛡️ SECURITY": ["antidelete","vv","vv2","vv3","autostatus"],
+    "😂 FUN": files.filter(f=>['love','ship','hug','kiss','slap','8ball','truth','dare','joke'].some(k=>f.includes(k))),
+    "🔧 TOOLS": files.filter(f=>!['play','video','owner','menu','vv','antidelete','tag','group','love'].some(k=>f.includes(k))).slice(0,30)
   };
+  
+  // agar filter khali ho to saare dikhao
+  let allFound = Object.values(cats).flat();
+  let remaining = files.filter(f=>!allFound.includes(f));
+  if(remaining.length) cats["📦 OTHERS"] = remaining;
 
-  let total = 0;
-  for (const list of Object.values(categories)) total += list.length;
-
-  // BEAUTIFUL MENU DESIGN
-  let menuText = `*╭━━━〘 ${config.botName} 〙━━━╮*\n`;
-  menuText += `*┃*\n`;
-  menuText += `*┃* 👑 *Owner:* ${config.ownerName}\n`;
-  menuText += `*┃* 🔢 *Prefix:* ${config.prefix}\n`;
-  menuText += `*┃* 📦 *Total Cmds:* ${extra?.commands?.size || total}+ \n`;
-  menuText += `*┃* 🌹 *Meri JAAN*\n`;
-  menuText += `*┃*\n`;
-  menuText += `*╰━━━━━━━━━━━━━━━━━━╯*\n\n`;
-
-  for (const [cat, cmds] of Object.entries(categories)) {
-    menuText += `*╭─ ${cat} ─*\n`;
-    menuText += `*│* ${cmds.map(c => `⦿ .${c}`).join('\n*│* ')}\n`;
-    menuText += `*╰────────────────*\n\n`;
+  let txt = `*╭━━━〘 ${config.botName} 〙━━━╮*\n*┃* Total: ${files.length} Cmds\n*┃* Prefix: ${config.prefix}\n*┃* 🌹 Meri JAAN\n*╰━━━━━━━━━━━━━━╯*\n\n`;
+  for(const [cat, list] of Object.entries(cats)){
+    if(!list.length) continue;
+    txt += `*╭─ ${cat} ─*\n`;
+    txt += `*│* ${list.sort().map(c=>`.${c}`).join('\n*│* ')}\n`;
+    txt += `*╰───────────────*\n\n`;
   }
-
-  menuText += `*╭───〘 USAGE 〙───╮*\n`;
-  menuText += `*│* .play Tere Sadqe\n`;
-  menuText += `*│* .video Song Name\n`;
-  menuText += `*│* .vv2 (reply to viewonce)\n`;
-  menuText += `*│* .antidelete on\n`;
-  menuText += `*╰───────────────╯*\n\n`;
-  menuText += `> _${config.botName} v${config.version}_\n`;
-  menuText += `> _Powered by Meri JAAN 🌹_`;
-
-  try {
-    await sock.sendMessage(jid, {
-      image: { url: DP },
-      caption: menuText
-    }, { quoted: msg });
-  } catch (e) {
-    // Agar image fail ho to text bhej de
-    await sock.sendMessage(jid, { text: menuText }, { quoted: msg });
-  }
+  txt += `_Use .play / .video name_\n_Meri JAAN 🌹_`;
+  
+  await sock.sendMessage(jid,{image:{url:DP},caption:txt},{quoted:msg}).catch(async()=>{ await sock.sendMessage(jid,{text:txt},{quoted:msg}); });
 }
-
 export default { name, execute };
