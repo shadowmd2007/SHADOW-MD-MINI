@@ -7,34 +7,97 @@ export const command = {
     const query = ctx.args.join(' ');
     const { sock, jid, m } = ctx;
     if (!query) return await ctx.reply(`*Example:* ${ctx.prefix}video Pasoori`);
+
     try {
       await sock.sendMessage(jid, { react: { text: '🎬', key: m.key } });
       await ctx.reply(`🔍 *"${query}"* search...`);
+
       let videoUrl = '', title = query, thumbnail = '', channel = '';
+
       try {
-        let r1 = await fetch(`https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`);
-        let j1 = await r1.json();
-        if (j1?.result?.[0]?.url) { videoUrl = j1.result[0].url; title = j1.result[0].title; thumbnail = j1.result[0].thumbnail; channel = j1.result[0].author || ''; }
+        const r1 = await fetch(`https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`);
+        if (!r1.ok) throw new Error(`Search API HTTP ${r1.status}`);
+        const j1 = await r1.json();
+        const list = Array.isArray(j1?.result) ? j1.result : Array.isArray(j1?.results) ? j1.results : Array.isArray(j1?.data) ? j1.data : [];
+        const item = list.find(x => x && (x.url || x.videoUrl || x.link));
+
+        if (item) {
+          videoUrl = item.url || item.videoUrl || item.link;
+          title = item.title || item.name || query;
+          thumbnail = item.thumbnail || item.image || item.thumbnails?.[0]?.url || '';
+          channel = item.author || item.channel || item.uploader || '';
+        }
       } catch {}
-      if (!videoUrl) return await ctx.reply(`❌ *Video not found.*`);
+
+      if (!videoUrl) return await ctx.reply('❌ Video search failed. Search API ne valid result nahi diya.');
+
       if (thumbnail) {
         try {
-          await sock.sendMessage(jid, { image: { url: thumbnail }, caption: `*🎬 ${title}*\n*📺 ${channel}*\n\n📥 Video bhej raha hun...` }, { quoted: m });
+          await sock.sendMessage(jid, {
+            image: { url: thumbnail },
+            caption: `*🎬 ${title}*\n*📺 ${channel}*\n\n📥 Video bhej raha hun...`
+          }, { quoted: m });
         } catch {}
       }
+
       let videoDownloadUrl = '';
       const apis = [
         `https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
         `https://api.vreden.my.id/api/ytmp4?url=${encodeURIComponent(videoUrl)}`,
         `https://api.ryzendesu.vip/api/downloader/ytmp4?url=${encodeURIComponent(videoUrl)}`
       ];
-      for(const api of apis){
-        try{ let r = await fetch(api); let j = await r.json(); let url = j?.result?.downloadUrl || j?.result?.url || j?.result?.download || j?.url; if(url){ videoDownloadUrl = url; break; } }catch{}
+
+      for (const api of apis) {
+        try {
+          const r = await fetch(api);
+          if (!r.ok) continue;
+          const j = await r.json();
+
+          const findUrl = (v, depth = 0) => {
+            if (!v || depth > 5) return '';
+            if (typeof v === 'string') return /^https?:\/\//i.test(v) ? v : '';
+            if (Array.isArray(v)) {
+              for (const x of v) {
+                const u = findUrl(x, depth + 1);
+                if (u) return u;
+              }
+              return '';
+            }
+            if (typeof v === 'object') {
+              for (const k of ['downloadUrl', 'download_url', 'url', 'download', 'video', 'link']) {
+                const u = findUrl(v[k], depth + 1);
+                if (u) return u;
+              }
+              for (const val of Object.values(v)) {
+                const u = findUrl(val, depth + 1);
+                if (u) return u;
+              }
+            }
+            return '';
+          };
+
+          const url = findUrl(j?.result || j?.data || j);
+          if (url) {
+            videoDownloadUrl = url;
+            break;
+          }
+        } catch {}
       }
+
       if (!videoDownloadUrl) throw new Error('All APIs failed');
-      const caption = `*🎬 Title:* ${title}\n*📺 Channel:* ${channel}\n\n🌹 *Meri JAAN* 💖`;
-      await sock.sendMessage(jid, { video: { url: videoDownloadUrl }, mimetype: 'video/mp4', fileName: `${title}.mp4`, caption }, { quoted: m });
+
+      const caption = `*🎬 Title:* ${title}\n*📺 Channel:* ${channel}\n\n🌹 *SHADOW MD* 💖`;
+      await sock.sendMessage(jid, {
+        video: { url: videoDownloadUrl },
+        mimetype: 'video/mp4',
+        fileName: `${title}.mp4`,
+        caption
+      }, { quoted: m });
+
       await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
-    } catch (e) { await ctx.reply(`❌ *Failed.* Try again: ${e.message}\nMeri JAAN 🌹`); }
+    } catch (e) {
+      console.log('VIDEO DOWNLOAD ERROR:', e?.message || e);
+      await ctx.reply('❌ Video download failed. Download service unavailable ya response badal gaya hai.');
+    }
   }
 };
