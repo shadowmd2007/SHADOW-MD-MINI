@@ -1,55 +1,46 @@
-import fs from 'fs';
-import path from 'path';
-
-const dbPath = './data/autoreact.json';
 
 export const command = {
-  name: 'autoreact',
-  aliases: ['react', 'autoreaction'],
+  name: 'autostatus',
+  aliases: ['astatus'],
   category: 'OWNER',
-  description: 'Auto react on/off',
+  description: 'Auto status setting',
 
   run: async (ctx) => {
-    const args = ctx.args[0]?.toLowerCase();
-    
-    // data folder banao agar nahi hai
-    if (!fs.existsSync('./data')) fs.mkdirSync('./data');
-    if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ enabled: false }));
+    const owner =
+      process.env.OWNER_NUMBER ||
+      ctx.config?.ownerNumber ||
+      ctx.config?.owner;
 
-    let db = JSON.parse(fs.readFileSync(dbPath));
+    const sender = ctx.senderJid || ctx.sender || ctx.jid;
+    const ownerJid = owner
+      ? (owner.includes('@')
+          ? owner
+          : `${owner.replace(/\D/g, '')}@s.whatsapp.net`)
+      : null;
 
-    if (!args) {
-      return await ctx.reply(
-`╭───❀ 🌹 ❀───╮
-   🌹 𝐀𝐔𝐓𝐎 𝐑𝐄𝐀𝐂𝐓 🌹
-╰───❀ 🌹 ❀───╯
+    if (!ownerJid || sender !== ownerJid) {
+      return ctx.reply('❌ Sirf bot owner is command ko use kar sakta hai.');
+    }
 
-*Status:* ${db.enabled ? '✅ ON' : '❌ OFF'}
+    const action = (ctx.args[0] || '').toLowerCase();
 
-*Use:*
-  ◦ ${ctx.prefix}autoreact on
-  ◦ ${ctx.prefix}autoreact off
-
-╭───❀ 🌹 ❀───╮
-   🌹 𝐏𝐎𝐖𝐄𝐑𝐄𝐃 𝐁𝐘 🌹
-   💖 𝑴𝒆𝒓𝒊 𝑱𝑨𝑨𝑵 💖
-╰───❀ 🌹 ❀───╯
-`
+    if (!['on', 'off'].includes(action)) {
+      return ctx.reply(
+        `📱 *AUTO STATUS*\n\n` +
+        `• .autostatus on\n` +
+        `• .autostatus off\n\n` +
+        `💖 Powered by Meri JAAN`
       );
     }
 
-    if (args === 'on') {
-      db.enabled = true;
-      fs.writeFileSync(dbPath, JSON.stringify(db));
-      return await ctx.reply('✅ *AutoReact ON ho gaya Meri JAAN* 🌹💖\nAb har message pe bot react karega.');
-    }
+    // Shared handler setting update
+    ctx.settings.autostatus = action === 'on';
 
-    if (args === 'off') {
-      db.enabled = false;
-      fs.writeFileSync(dbPath, JSON.stringify(db));
-      return await ctx.reply('❌ *AutoReact OFF ho gaya Meri JAAN* 🌹\nAb bot react nahi karega.');
-    }
-
-    return await ctx.reply(`Galat command Meri JAAN 🌹\n*Use:* ${ctx.prefix}autoreact on / off`);
+    return ctx.reply(
+      `✅ AutoStatus: *${action.toUpperCase()}*\n\n` +
+      `💖 Powered by Meri JAAN`
+    );
   }
 };
+
+export default { command };
