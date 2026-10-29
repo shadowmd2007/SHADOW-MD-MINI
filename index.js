@@ -1,447 +1,737 @@
+import express from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
+import pino from 'pino';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import baileys from '@whiskeysockets/baileys';
+import { config } from './config.js';
+import { CommandError } from './lib/command-utils.js';
 
-import * as baileysNs from '@whiskeysockets/baileys'
-import { Boom } from '@hapi/boom'
-import express from 'express'
-import pino from 'pino'
-import fs from 'fs'
-import path from 'path'
-import { onMessage, loadCommands } from './handler.js'
+const makeWASocket = baileys.default || baileys.makeWASocket;
+const B = (k) => baileys[k] ?? baileys.default?.[k];
+const { useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion, DisconnectReason, downloadMediaMessage } = baileys;
+const jidNormalizedUser = B('jidNormalizedUser') ?? ((j) => String(j || '').replace(/:\d+@/, '@'));
+const normalizeMessageContent = B('normalizeMessageContent') ?? ((c) => c);
 
-const B = baileysNs.useMultiFileAuthState
-  ? baileysNs
-  : (baileysNs.default ?? baileysNs)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
+const PORT = Number(process.env.PORT || 3000);
 
-const makeWASocket =
-  typeof baileysNs.default === 'function'
-    ? baileysNs.default
-    : typeof B.default === 'function'
-      ? B.default
-      : B.makeWASocket ?? baileysNs.makeWASocket
+const AUTH_DIR = (() => {
+  if (process.env.AUTH_DIR) return path.resolve(process.env.AUTH_DIR);
+  const candidates = [
+    path.resolve(__dirname, './auth'),
+    path.resolve('/app/data/shadow-auth')
+  ];
+  const existing = candidates.find((dir) => fs.existsSync(path.join(dir, 'creds.json')));
+  return existing || path.resolve('/app/data/shadow-auth');
+})();
 
-const {
-  useMultiFileAuthState,
-  makeCacheableSignalKeyStore,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-  Browsers
-} = B
+const DATA_DIR = path.resolve(__dirname, './data');
+const COMMANDS_DIR = path.join(__dirname, 'commands');
+const ANTIDELETE_FILE = path.join(DATA_DIR, 'antidelete.json');
+const ONLINE_FILE = path.join(DATA_DIR, 'online.json');
+const logger = pino({ level: 'silent' });
 
-const PORT = process.env.PORT || 10000
+let sock = null, status = 'DISCONNECTED', pairCode = null, pairTime = 0, lastNumber = '';
+let reconnectTimer = null;
+const messageStore = new Map();
+const registry = new Map();
+const commandsMap = registry;
+let antiDeleteEnabled = false;
+let alwaysOnline = true;
+let onlineInterval = null;
+const seenIds = new Set();
+const seenDeletes = new Set();
 
-// Existing saved session ko dhoondo; warna persistent volume use karo.
-const AUTH_CANDIDATES = [
-  process.env.AUTH_DIR,
-  'auth',
-  '/app/data/shadow-auth'
-].filter(Boolean)
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+} catch {}
 
-const AUTH_DIR =
-  AUTH_CANDIDATES.find(dir =>
-    fs.existsSync(path.join(dir, 'creds.json'))
-  ) || process.env.AUTH_DIR || '/app/data/shadow-auth'
-
-console.log('Auth directory:', AUTH_DIR)
-
-const logger = pino({ level: process.env.LOG_LEVEL || 'silent' })
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-
-let sock = null
-let generation = 0
-let pairingBusy = false
-let lastPairAt = 0
-let reconnectTimer = null
-
-const status = {
-  connection: 'idle',
-  paired: false,
-  closeCode: null,
-  number: null
+function readJson(file, fallbackFile) {
+  for (const f of [file, fallbackFile]) {
+    try {
+      if (f && fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf8'));
+    } catch {}
+  }
+  return null;
 }
 
-const wipeAuth = () => {
+{
+  const a = readJson(ANTIDELETE_FILE, path.join(AUTH_DIR, 'antidelete.json'));
+  if (a) antiDeleteEnabled = !!a.enabled;
+  const o = readJson(ONLINE_FILE, path.join(AUTH_DIR, 'online.json'));
+  if (o && typeof o.online === 'boolean') alwaysOnline = o.online;
+}
+
+function saveAntiDelete() {
   try {
-    fs.rmSync(AUTH_DIR, { recursive: true, force: true })
-  } catch (e) {
-    console.error('Auth cleanup error:', e.message)
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(ANTIDELETE_FILE, JSON.stringify({ enabled: antiDeleteEnabled, ownerJid: null }));
+  } catch {}
+}
+
+function saveOnline() {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(ONLINE_FILE, JSON.stringify({ online: alwaysOnline }));
+  } catch {}
+}
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+function normNum(v) {
+  let n = String(v || '').replace(/\D/g, '');
+  if (n.startsWith('0')) n = '92' + n.slice(1);
+  return n;
+}
+
+function getDP() {
+  if (config.menuImage?.startsWith('http')) return config.menuImage;
+  if (config.botImage?.startsWith('http')) return config.botImage;
+  return 'https://i.ibb.co/BHfCmfbw/jawadmd.jpg';
+}
+
+// ================= COMMAND LOADER =================
+const fileName = (f) => f.replace(/\.js$/, '').toLowerCase();
+
+async function loadCommands() {
+  registry.clear();
+  const files = fs.existsSync(COMMANDS_DIR)
+    ? fs.readdirSync(COMMANDS_DIR).filter((f) => f.endsWith('.js')).sort()
+    : [];
+
+  const entries = [];
+  const aliasMaps = [];
+
+  for (const f of files) {
+    let mod;
+
+    try {
+      mod = await import(pathToFileURL(path.join(COMMANDS_DIR, f)).href);
+    } catch (e) {
+      console.log(`LOAD FAIL commands/${f}: ${e.message.split('\n')[0]}`);
+      continue;
+    }
+
+    if (mod.aliases && typeof mod.aliases === 'object') {
+      aliasMaps.push(mod.aliases);
+    }
+
+    const add = (kind, fn, names, d = {}) => {
+      names = names.map((n) => String(n).toLowerCase()).filter(Boolean);
+      if (!names.length || typeof fn !== 'function' || d.hidden) return;
+
+      const cat = String(d.category || d.cat || 'general').toLowerCase();
+
+      entries.push({
+        name: names[0],
+        aliases: names.slice(1),
+        kind,
+        fn,
+        file: f,
+        cat,
+        owner: !!d.owner || cat === 'owner',
+        group: !!d.group
+      });
+    };
+
+    const alist = (d) => [].concat(d?.aliases || d?.alias || []);
+
+    if (mod.command && typeof mod.command === 'object' && typeof mod.command.run === 'function') {
+      add('ctx', mod.command.run, [mod.command.name || fileName(f), ...alist(mod.command)], mod.command);
+    }
+
+    if (Array.isArray(mod.commands)) {
+      for (const d of mod.commands) {
+        if (d && typeof d.run === 'function') {
+          add('ctx', d.run, [d.name || fileName(f), ...alist(d)], d);
+        }
+      }
+    }
+
+    const d = mod.default;
+
+    if (typeof d === 'function') {
+      const names = Array.isArray(d.command)
+        ? d.command
+        : [d.command || d.name || fileName(f)];
+
+      if (d.command && Array.isArray(d.command) && !d.command.includes(fileName(f))) {
+        names.unshift(fileName(f));
+      }
+
+      add('exec', d.execute || d, names, d);
+    } else if (d && typeof d === 'object') {
+      if (typeof d.run === 'function' && !mod.command) {
+        add('ctx', d.run, [d.name || fileName(f), ...alist(d)], d);
+      } else if (typeof d.execute === 'function') {
+        add('exec', d.execute, [d.name || fileName(f), ...alist(d)], d);
+      }
+    }
+
+    if (typeof mod.execute === 'function' && !entries.some((e) => e.file === f)) {
+      add('exec', mod.execute, [mod.name || fileName(f)], mod);
+    }
+  }
+
+  for (const e of entries) registry.set(e.name, e);
+
+  for (const e of entries) {
+    for (const a of e.aliases) {
+      if (!registry.has(a)) registry.set(a, e);
+    }
+  }
+
+  for (const map of aliasMaps) {
+    for (const [a, t] of Object.entries(map)) {
+      if (!registry.has(a) && registry.has(t)) {
+        registry.set(a, registry.get(t));
+      }
+    }
+  }
+
+  console.log(`✅ ${new Set(entries.map((e) => e.name)).size} commands loaded (${registry.size} names incl. aliases)`);
+}
+
+function setOnlinePresence(wa, online) {
+  try {
+    if (onlineInterval) clearInterval(onlineInterval);
+    onlineInterval = null;
+
+    if (online) {
+      wa.sendPresenceUpdate('available').catch(() => {});
+      onlineInterval = setInterval(() => {
+        try {
+          wa.sendPresenceUpdate('available').catch(() => {});
+        } catch {}
+      }, 25000);
+    } else {
+      wa.sendPresenceUpdate('unavailable').catch(() => {});
+    }
+  } catch {}
+}
+
+function html() {
+  const valid = pairCode && Date.now() - pairTime < 65000;
+  const DP = getDP();
+
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>RANA MD</title><style>body{margin:0;min-height:100vh;background:#000;display:flex;justify-content:center;align-items:center;color:#fff;padding:20px;font-family:Arial}.card{width:100%;max-width:430px;background:#111;border:2px solid #ff0040;border-radius:28px;padding:28px;text-align:center}.dp{width:130px;height:130px;border-radius:50%;border:3px solid #ff0040}.status{padding:7px 18px;border-radius:20px;font-weight:700;display:inline-block;margin:10px 0}.CONNECTED{background:#0f0;color:#000}.DISCONNECTED{background:#f00}input,button{width:100%;padding:14px;margin-top:12px;border-radius:14px}input{background:#000;color:#fff;border:1px solid #333;text-align:center}button{background:#ff0040;color:#fff;border:none;font-weight:700}.online{margin-top:10px;padding:8px;border-radius:10px;background:#222;font-size:13px}</style></head><body><div class="card"><img class="dp" src="${DP}"><h1>RANA FURQAN MD</h1><div style="color:#ff4d6d">🌹 Meri JAAN 🌹</div><div class="status ${status}">${status}</div><div class="online">Online: ${alwaysOnline ? '🟢 ON' : '⚫ OFF'} | Anti: ${antiDeleteEnabled ? 'ON' : 'OFF'} | ${commandsMap.size} Cmds</div>${status === 'CONNECTED' ? `<div style="color:#0f0;margin-top:10px">✅ BOT ONLINE</div>` : `<form method="post" action="/pair"><input name="num" value="${lastNumber}" placeholder="92300..." required><button>GET CODE</button></form>${valid ? `<h1 style="color:#0f0;letter-spacing:5px">${pairCode}</h1>` : ''}`}</div></body></html>`;
+}
+
+app.get('/', (req, res) => res.send(html()));
+app.get('/health', (req, res) => res.send('OK'));
+
+// ================= HELPERS =================
+const digits = (j) => String(j || '').split('@')[0].split(':')[0].replace(/\D/g, '');
+
+function tsOf(m) {
+  const t = m.messageTimestamp;
+  if (!t) return 0;
+  return typeof t === 'object'
+    ? Number(t.toNumber?.() ?? t.low ?? 0)
+    : Number(t);
+}
+
+function ownJidOf(wa) {
+  return jidNormalizedUser(wa.user?.id || '');
+}
+
+function ownerDigits(wa) {
+  const s = new Set([
+    digits(config.ownerNumber),
+    digits(wa.user?.id),
+    digits(wa.user?.lid)
+  ]);
+  s.delete('');
+  return s;
+}
+
+function pruneStore() {
+  if (messageStore.size <= 3000) return;
+  const del = messageStore.size - 2500;
+  let i = 0;
+
+  for (const k of messageStore.keys()) {
+    messageStore.delete(k);
+    if (++i >= del) break;
   }
 }
 
-const isPaired = creds =>
-  !!(creds?.registered || (creds?.me?.id && creds.me.name !== '~'))
+setInterval(() => {
+  const cutoff = Date.now() - 2 * 3600 * 1000;
 
-async function createSocket() {
-  const myGen = ++generation
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
-
-  let version
-  try {
-    ({ version } = await fetchLatestBaileysVersion())
-  } catch (e) {
-    console.log('Version lookup failed; using library default.')
+  for (const [k, v] of messageStore) {
+    if ((v.__t || 0) < cutoff) messageStore.delete(k);
   }
 
-  const s = makeWASocket({
-    ...(version ? { version } : {}),
+  if (seenIds.size > 2000) seenIds.clear();
+  if (seenDeletes.size > 2000) seenDeletes.clear();
+}, 10 * 60 * 1000).unref?.();
+
+function getText(content) {
+  return (
+    content?.conversation ||
+    content?.extendedTextMessage?.text ||
+    content?.imageMessage?.caption ||
+    content?.videoMessage?.caption ||
+    content?.documentMessage?.caption ||
+    ''
+  ).toString();
+}
+
+// ================= VIEW ONCE (.vv .vv2 .vv3) =================
+async function openViewOnce(wa, m, ctx, toSender) {
+  if (!ctx.isOwner) return ctx.reply('❌ This command is for the owner only.');
+
+  const info = ctx.content?.extendedTextMessage?.contextInfo;
+
+  if (!info?.quotedMessage) {
+    return ctx.reply(`❌ Reply to a view-once photo, video or voice note with ${ctx.prefix}${ctx.cmd}`);
+  }
+
+  try {
+    const stored = messageStore.get(info.stanzaId);
+    let inner = normalizeMessageContent(stored?.message || info.quotedMessage) || {};
+
+    if (inner.viewOnceMessage?.message) inner = inner.viewOnceMessage.message;
+    if (inner.viewOnceMessageV2?.message) inner = inner.viewOnceMessageV2.message;
+    if (inner.viewOnceMessageV2Extension?.message) inner = inner.viewOnceMessageV2Extension.message;
+
+    const kind = inner.imageMessage
+      ? 'image'
+      : inner.videoMessage
+        ? 'video'
+        : inner.audioMessage
+          ? 'audio'
+          : null;
+
+    if (!kind) return ctx.reply('❌ That is not a photo, video or voice note.');
+
+    const buf = await downloadMediaMessage(
+      {
+        key: {
+          remoteJid: ctx.jid,
+          id: info.stanzaId,
+          participant: info.participant
+        },
+        message: inner
+      },
+      'buffer',
+      {},
+      { logger, reuploadRequest: wa.updateMediaMessage }
+    );
+
+    let target = ownJidOf(wa);
+    if (toSender) target = ctx.isGroup ? (info.participant || ctx.jid) : ctx.jid;
+
+    if (kind === 'image') {
+      await wa.sendMessage(target, { image: buf, caption: inner.imageMessage.caption || '' });
+    } else if (kind === 'video') {
+      await wa.sendMessage(target, { video: buf, caption: inner.videoMessage.caption || '' });
+    } else {
+      await wa.sendMessage(target, {
+        audio: buf,
+        mimetype: inner.audioMessage.mimetype || 'audio/ogg; codecs=opus',
+        ptt: true
+      });
+    }
+
+    await wa.sendMessage(ctx.jid, { react: { text: '✅', key: m.key } }).catch(() => {});
+  } catch (e) {
+    console.log('VV ERR', e.message);
+    await ctx.reply('❌ Could not open it. The media may have expired. Reply directly to the view-once message.');
+  }
+}
+
+// ================= ANTIDELETE =================
+async function handleDeleted(wa, deletedId) {
+  try {
+    if (!antiDeleteEnabled || !deletedId || seenDeletes.has(deletedId)) return;
+
+    const stored = messageStore.get(deletedId);
+    if (!stored?.message || stored.key?.fromMe) return;
+
+    seenDeletes.add(deletedId);
+
+    const me = ownJidOf(wa);
+    const c = normalizeMessageContent(stored.message) || {};
+    const chat = stored.key.remoteJid || '';
+    const isGrp = chat.endsWith('@g.us');
+    const who = digits(stored.key.participant || chat);
+
+    const head = `*🗑️ DELETED MESSAGE*\n👤 From: ${stored.pushName || 'Unknown'} (+${who})\n💬 Chat: ${isGrp ? 'Group ' + chat.split('@')[0] : 'Private'}\n🕒 ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Karachi' })}`;
+
+    const text = getText(c);
+    const kind = c.imageMessage
+      ? 'image'
+      : c.videoMessage
+        ? 'video'
+        : c.audioMessage
+          ? 'audio'
+          : c.stickerMessage
+            ? 'sticker'
+            : null;
+
+    if (kind) {
+      let buf = null;
+
+      try {
+        buf = await downloadMediaMessage(stored, 'buffer', {}, {
+          logger,
+          reuploadRequest: wa.updateMediaMessage
+        });
+      } catch {}
+
+      if (buf) {
+        if (kind === 'image') {
+          return void await wa.sendMessage(me, {
+            image: buf,
+            caption: `${head}${text ? '\n📝 ' + text : ''}`
+          });
+        }
+
+        if (kind === 'video') {
+          return void await wa.sendMessage(me, {
+            video: buf,
+            caption: `${head}${text ? '\n📝 ' + text : ''}`
+          });
+        }
+
+        await wa.sendMessage(me, { text: head + `\n📎 ${kind}` });
+
+        if (kind === 'audio') {
+          return void await wa.sendMessage(me, {
+            audio: buf,
+            mimetype: c.audioMessage.mimetype || 'audio/ogg; codecs=opus',
+            ptt: !!c.audioMessage.ptt
+          });
+        }
+
+        return void await wa.sendMessage(me, { sticker: buf });
+      }
+    }
+
+    await wa.sendMessage(me, {
+      text: `${head}\n📝 ${text || '[media / unsupported message]'}`
+    });
+  } catch (e) {
+    console.log('antidelete err', e.message);
+  }
+}
+
+// ================= MESSAGE HANDLER =================
+async function onMessage(wa, m) {
+  const content = normalizeMessageContent(m.message) || m.message;
+  const jid = m.key.remoteJid;
+  const text = getText(content).trim();
+  const prefix = config.prefix || '.';
+
+  if (!text || !text.startsWith(prefix)) return;
+
+  const args = text.slice(prefix.length).trim().split(/\s+/);
+  const cmd = (args.shift() || '').toLowerCase();
+
+  if (!cmd) return;
+
+  const isGroup = jid.endsWith('@g.us');
+  const ownJid = ownJidOf(wa);
+  const senderJid = m.key.fromMe
+    ? ownJid
+    : jidNormalizedUser(m.key.participant || jid);
+
+  const isOwner = !!m.key.fromMe || ownerDigits(wa).has(digits(senderJid));
+
+  if (config.mode === 'private' && !isOwner) return;
+
+  const reply = (t) =>
+    wa.sendMessage(
+      jid,
+      typeof t === 'object' && t ? t : { text: String(t ?? '') },
+      { quoted: m }
+    ).catch((e) => console.log('reply err', e.message));
+
+  let metaCache = null;
+  const getMeta = async () => (metaCache ||= (isGroup ? await wa.groupMetadata(jid) : null));
+
+  const info = content?.extendedTextMessage?.contextInfo || {};
+  let targets = info.mentionedJid?.length
+    ? info.mentionedJid
+    : info.participant
+      ? [info.participant]
+      : [];
+
+  if (!targets.length) {
+    targets = args
+      .map((a) => a.replace(/\D/g, ''))
+      .filter((n) => n.length >= 8)
+      .map((n) => n + '@s.whatsapp.net');
+  }
+
+  const ctx = {
+    sock: wa,
+    conn: wa,
+    m,
+    msg: m,
+    jid,
+    remote: jid,
+    args,
+    text: args.join(' '),
+    cmd,
+    prefix,
+    config,
+    settings: config,
+    content,
+    isGroup,
+    isOwner,
+    reply,
+    getMeta,
+    targets,
+    sender: digits(senderJid),
+    senderNum: digits(senderJid),
+    senderJid,
+    botJid: ownJid,
+    botLid: wa.user?.lid ? jidNormalizedUser(wa.user.lid) : '',
+    commandList: [...new Set([...registry.values()])]
+  };
+
+  console.log(`CMD: ${prefix}${cmd} owner:${isOwner} group:${isGroup}`);
+
+  if (cmd === 'vv') return openViewOnce(wa, m, ctx, false);
+  if (cmd === 'vv2' || cmd === 'vv3') return openViewOnce(wa, m, ctx, true);
+
+  if (cmd === 'antidelete' || cmd === 'antidel' || cmd === 'ad') {
+    if (!isOwner) return reply('❌ This command is for the owner only.');
+
+    const s = (args[0] || '').toLowerCase();
+
+    if (s === 'on') {
+      antiDeleteEnabled = true;
+      saveAntiDelete();
+      return reply('✅ *Antidelete ON*\nDeleted messages will be sent to your personal chat only.');
+    }
+
+    if (s === 'off') {
+      antiDeleteEnabled = false;
+      saveAntiDelete();
+      return reply('❌ *Antidelete OFF*');
+    }
+
+    return reply(`*Antidelete:* ${antiDeleteEnabled ? 'ON ✅' : 'OFF ❌'}\nUse: ${prefix}antidelete on / off`);
+  }
+
+  if (cmd === 'alwaysonline' || cmd === 'alwayson') {
+    if (!isOwner) return reply('❌ This command is for the owner only.');
+
+    const s = (args[0] || '').toLowerCase();
+
+    if (s === 'on') {
+      alwaysOnline = true;
+      saveOnline();
+      setOnlinePresence(wa, true);
+      return reply('🟢 *Always Online ON*');
+    }
+
+    if (s === 'off') {
+      alwaysOnline = false;
+      saveOnline();
+      setOnlinePresence(wa, false);
+      return reply('⚫ *Always Online OFF*');
+    }
+
+    return reply(`*Always Online:* ${alwaysOnline ? 'ON 🟢' : 'OFF ⚫'}\nUse: ${prefix}alwaysonline on / off`);
+  }
+
+  const entry = registry.get(cmd);
+  if (!entry) return;
+
+  if (entry.owner && !isOwner) return reply('❌ This command is for the owner only.');
+  if (entry.group && !isGroup) return reply('❌ This command can only be used in groups.');
+
+  try {
+    if (entry.kind === 'ctx') {
+      await entry.fn(ctx);
+    } else {
+      await entry.fn(wa, m, args, {
+        config,
+        prefix,
+        commands: registry,
+        conn: wa,
+        isOwner,
+        isGroup,
+        ctx
+      });
+    }
+  } catch (e) {
+    if (e instanceof CommandError) return reply(e.message);
+    console.log(`CMD ERR (${cmd}):`, e?.message || e);
+    return reply(`❌ Something went wrong while running ${prefix}${cmd}. Please check how you used it and try again.`);
+  }
+}
+
+// ================= SOCKET =================
+async function startBot(num) {
+  if (num) lastNumber = num;
+
+  if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
+
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+  const { version } = await fetchLatestBaileysVersion();
+
+  const wa = makeWASocket({
+    version,
+    logger,
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger)
     },
-    logger,
-    printQRInTerminal: false,
-    browser: Browsers.ubuntu('Chrome'),
-    syncFullHistory: false,
-    markOnlineOnConnect: false
-  })
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
+    markOnlineOnConnect: alwaysOnline,
+    getMessage: async (key) => messageStore.get(key.id)?.message
+  });
 
-  sock = s
+  sock = wa;
+  status = 'CONNECTING';
 
-  s.ev.on('creds.update', async () => {
-    if (myGen !== generation) return
+  wa.ev.on('creds.update', saveCreds);
+
+  wa.ev.on('messages.upsert', async (upsert) => {
     try {
-      await saveCreds()
-    } catch (e) {
-      console.error('Saving credentials failed:', e.message)
-    }
-  })
+      for (const mm of upsert.messages || []) {
+        if (!mm?.message || !mm.key?.id) continue;
 
-  s.ev.on('messages.upsert', upsert => {
-    if (myGen !== generation || upsert.type !== 'notify') return
-    onMessage(s, upsert).catch(e =>
-      console.error('Handler error:', e.message)
-    )
-  })
+        const proto = normalizeMessageContent(mm.message)?.protocolMessage || mm.message.protocolMessage;
 
-  s.ev.on('connection.update', update =>
-    onConnection(s, myGen, update)
-  )
-
-  return s
-}
-
-function scheduleReconnect(ms) {
-  clearTimeout(reconnectTimer)
-  reconnectTimer = setTimeout(() => {
-    createSocket().catch(e => {
-      console.error('Reconnect error:', e.message)
-      scheduleReconnect(5000)
-    })
-  }, ms)
-}
-
-function onConnection(s, myGen, update) {
-  if (myGen !== generation) return
-
-  const { connection, lastDisconnect } = update
-
-  if (connection) {
-    status.connection = connection
-    console.log('Connection:', connection)
-  }
-
-  if (connection === 'open') {
-    status.paired = true
-    status.closeCode = null
-    status.number =
-      String(s.user?.id || '').split(':')[0].split('@')[0] || null
-
-    console.log('CONNECTED SUCCESSFULLY!', status.number)
-
-    const me = String(s.user?.id || '').replace(/:\d+@/, '@')
-    if (me) {
-      s.sendMessage(me, {
-        text: '✅ SHADOW-MD CONNECTED! Bot Online!\n\nType .menu'
-      }).catch(() => {})
-    }
-  }
-
-  if (connection === 'close') {
-    const code = new Boom(lastDisconnect?.error)?.output?.statusCode
-    status.closeCode = code ?? 'unknown'
-    console.log('Connection closed, code:', code)
-
-    if (code === DisconnectReason.loggedOut) {
-      wipeAuth()
-      sock = null
-      status.paired = false
-      status.connection = 'idle'
-      console.log('WhatsApp logged out; pairing is required.')
-      return
-    }
-
-    if (code === DisconnectReason.restartRequired) {
-      scheduleReconnect(500)
-      return
-    }
-
-    if (status.paired) {
-      scheduleReconnect(3000)
-    } else {
-      status.connection = 'idle'
-    }
-  }
-}
-
-async function stopSocket() {
-  clearTimeout(reconnectTimer)
-  generation++
-
-  const old = sock
-  sock = null
-
-  try {
-    old?.end?.(undefined)
-  } catch {}
-
-  await sleep(600)
-}
-
-function waitReady(s, ms = 12000) {
-  return new Promise((resolve, reject) => {
-    let settled = false
-
-    const done = (fn, arg) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      s.ev.off('connection.update', on)
-      fn(arg)
-    }
-
-    const on = update => {
-      if (update.qr) done(resolve)
-      else if (update.connection === 'close') {
-        done(reject, new Error('Connection closed; try again later.'))
-      }
-    }
-
-    const timer = setTimeout(() => done(resolve), ms)
-    s.ev.on('connection.update', on)
-  })
-}
-
-function watchPairReject(s, ms = 3500) {
-  return new Promise(resolve => {
-    const ws = s.ws
-    if (!ws || typeof ws.on !== 'function') return resolve(null)
-
-    let timer
-
-    const done = value => {
-      clearTimeout(timer)
-      try {
-        ws.off?.('CB:iq,type:error', on)
-      } catch {}
-      resolve(value)
-    }
-
-    const on = node => {
-      const err = Array.isArray(node?.content)
-        ? node.content.find(n => n?.tag === 'error')
-        : null
-
-      done(err
-        ? {
-            code: err.attrs?.code || '?',
-            text: err.attrs?.text || 'error'
+        if (proto) {
+          if (proto.type === 0 || proto.type === 'REVOKE') {
+            await handleDeleted(wa, proto.key?.id);
           }
-        : null)
-    }
+          continue;
+        }
 
-    timer = setTimeout(() => done(null), ms)
-
-    try {
-      ws.on('CB:iq,type:error', on)
-    } catch {
-      done(null)
-    }
-  })
-}
-
-async function generatePairingCode(num) {
-  let lastErr
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      // Do not delete saved credentials while requesting a pairing code.
-      const s = await createSocket()
-      await waitReady(s)
-      await sleep(1500)
-
-      const watch = watchPairReject(s)
-      const raw = await s.requestPairingCode(num)
-      const rejection = await watch
-
-      if (rejection) {
-        const err = new Error(
-          `WhatsApp rejected pairing code: ${rejection.code} ${rejection.text}`
-        )
-        err.noRetry = true
-        throw err
+        if (!messageStore.has(mm.key.id)) {
+          messageStore.set(mm.key.id, Object.assign(mm, { __t: Date.now() }));
+          pruneStore();
+        }
       }
 
-      return String(raw).match(/.{1,4}/g).join('-')
+      if (upsert.type !== 'notify') return;
+
+      for (const m of upsert.messages || []) {
+        if (!m?.message || !m.key?.remoteJid || m.key.remoteJid === 'status@broadcast') continue;
+        if (m.message.protocolMessage) continue;
+
+        const t = tsOf(m);
+        if (t && Date.now() / 1000 - t > 60) continue;
+        if (seenIds.has(m.key.id)) continue;
+
+        seenIds.add(m.key.id);
+        await onMessage(wa, m).catch((e) => console.log('onMessage err', e?.message || e));
+      }
     } catch (e) {
-      if (e.noRetry) throw e
-      lastErr = e
-      console.error(`Pair attempt ${attempt} failed:`, e.message)
-      await sleep(2500)
+      console.log('upsert crash', e.message);
     }
-  }
+  });
 
-  throw lastErr
-}
-
-const app = express()
-
-app.get('/status', (req, res) => res.json(status))
-app.get('/health', (req, res) => res.send('ok'))
-
-app.get('/', (req, res) => {
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SHADOW-MD PAIR</title>
-<style>
-*{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0e1116;color:#eef0f4;font-family:system-ui;padding:16px}
-.card{width:100%;max-width:400px;background:#171b22;border:1px solid #2a303a;border-radius:16px;padding:24px;text-align:center}
-p{color:#9aa3b2;font-size:14px;line-height:1.5}
-input,button{width:100%;padding:13px;font-size:16px;border-radius:10px;border:1px solid #2a303a;background:#0e1116;color:#eef0f4}
-button{margin-top:10px;background:#128c7e;border:0;font-weight:600}
-#c{font-size:30px;font-weight:800;letter-spacing:4px;color:#25d366;margin:18px 0;word-break:break-all}
-#s{font-size:14px}
-</style>
-</head>
-<body>
-<div class="card">
-<h2>SHADOW-MD PAIR</h2>
-<p>Number country code ke saath likho, + aur starting 0 ke baghair.<br>Example: 923001234567</p>
-<input id="n" type="tel" inputmode="numeric" placeholder="923001234567">
-<button id="b" onclick="go()">Get Pairing Code</button>
-<div id="c"></div>
-<div id="s"></div>
-</div>
-<script>
-const $ = id => document.getElementById(id);
-let timer;
-
-function poll() {
-  clearInterval(timer);
-  let count = 0;
-  timer = setInterval(async () => {
-    count++;
+  wa.ev.on('messages.update', async (updates) => {
     try {
-      const j = await (await fetch('/status')).json();
-      $('s').innerText = 'Status: ' + j.connection;
-      if (j.connection === 'open') {
-        $('c').innerText = '✅ CONNECTED';
-        $('s').innerText = 'Bot online. WhatsApp mein .menu check karo.';
-        clearInterval(timer);
+      for (const { key, update } of updates) {
+        const st = update?.messageStubType;
+        if (st === 1 || st === 'REVOKE') {
+          await handleDeleted(wa, key?.id);
+        }
       }
-    } catch {}
-    if (count > 90) clearInterval(timer);
-  }, 2000);
+    } catch (e) {
+      console.log('antidel update err', e.message);
+    }
+  });
+
+  wa.ev.on('connection.update', async (u) => {
+    const { connection, lastDisconnect } = u;
+
+    if (connection === 'open') {
+      status = 'CONNECTED';
+      pairCode = null;
+      await loadCommands();
+      setOnlinePresence(wa, alwaysOnline);
+      console.log(`✅ ONLINE - ${registry.size} names - ONLINE ${alwaysOnline ? 'ON' : 'OFF'} - ANTIDELETE ${antiDeleteEnabled ? 'ON' : 'OFF'}`);
+    } else if (connection === 'close') {
+      status = 'DISCONNECTED';
+      sock = null;
+
+      if (onlineInterval) clearInterval(onlineInterval);
+
+      const code = lastDisconnect?.error?.output?.statusCode;
+
+      if (code !== DisconnectReason.loggedOut) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => {
+          startBot().catch((e) => console.log('reconnect err', e.message));
+        }, 3000);
+      }
+    }
+  });
+
+  if (num && !state.creds?.registered) {
+    await new Promise((r) => setTimeout(r, 3500));
+
+    try {
+      let code = await wa.requestPairingCode(num);
+      code = code.toUpperCase().replace(/[^A-Z0-9]/g, '').match(/.{1,4}/g).join('-');
+      pairCode = code;
+      pairTime = Date.now();
+    } catch (e) {
+      console.log('pair code error:', e?.message || e);
+    }
+  }
 }
 
-async function go() {
-  const num = $('n').value.replace(/[^0-9]/g, '');
-  if (num.length < 8) {
-    $('s').innerText = 'Number sahi likho.';
-    return;
+app.post('/pair', async (req, res) => {
+  const n = normNum(req.body?.num);
+
+  if (!n || n.length < 8 || n.length > 15) {
+    return res.status(400).send('Invalid phone number.');
   }
 
-  $('b').disabled = true;
-  $('c').innerText = '';
-  $('s').innerText = 'Please wait...';
+  if (status === 'CONNECTED' || status === 'CONNECTING') {
+    return res.redirect('/');
+  }
+
+  lastNumber = n;
+  pairCode = null;
+  status = 'CONNECTING';
 
   try {
-    const response = await fetch('/pair?number=' + num);
-    const j = await response.json();
-
-    if (j.code) {
-      $('c').innerText = j.code;
-      $('s').innerText =
-        'WhatsApp > Linked Devices > Link with phone number instead.';
-      poll();
-    } else {
-      $('s').innerText = j.error || 'Pairing error';
-    }
+    await startBot(n);
   } catch (e) {
-    $('s').innerText = 'Error: ' + e.message;
+    status = 'DISCONNECTED';
+    console.log('pair start error:', e?.message || e);
   }
 
-  $('b').disabled = false;
+  for (let i = 0; i < 12; i++) {
+    if (pairCode || status === 'CONNECTED') break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  res.redirect('/');
+});
+
+process.on('uncaughtException', (e) => console.log('uncaught:', e?.message || e));
+process.on('unhandledRejection', (e) => console.log('unhandled:', e?.message || e));
+
+await loadCommands();
+app.listen(PORT, () => console.log('BOT READY ON ' + PORT));
+
+try {
+  const credsPath = path.join(AUTH_DIR, 'creds.json');
+  const creds = fs.existsSync(credsPath) ? JSON.parse(fs.readFileSync(credsPath, 'utf8')) : null;
+
+  if (creds?.registered === true) {
+    startBot().catch((e) => console.log('start err', e.message));
+  } else {
+    console.log('No registered session found; open the pairing page to link WhatsApp.');
+  }
+} catch (e) {
+  console.log('Auth check error:', e.message);
 }
-</script>
-</body>
-</html>`)
-})
-
-app.get('/pair', async (req, res) => {
-  const num = String(req.query.number || '').replace(/[^0-9]/g, '')
-
-  if (num.length < 8 || num.length > 15) {
-    return res.json({
-      error: 'Number country code ke saath likho, + aur starting 0 ke baghair.'
-    })
-  }
-
-  if (status.paired) {
-    return res.json({
-      error: 'Existing session detected. Dobara pair na karein; pehle connection logs check karein.'
-    })
-  }
-
-  if (pairingBusy) {
-    return res.json({ error: 'Pairing request already running; wait a little.' })
-  }
-
-  if (Date.now() - lastPairAt < 8000) {
-    return res.json({ error: 'Please wait 8 seconds before retrying.' })
-  }
-
-  pairingBusy = true
-  lastPairAt = Date.now()
-
-  try {
-    const code = await generatePairingCode(num)
-    console.log('Pairing code requested for:', num)
-    res.json({ code })
-  } catch (e) {
-    console.error('Pairing error:', e.message)
-    res.status(500).json({ error: e.message })
-  } finally {
-    pairingBusy = false
-  }
-})
-
-process.on('unhandledRejection', e =>
-  console.error('Unhandled rejection:', e)
-)
-
-process.on('uncaughtException', e =>
-  console.error('Uncaught exception:', e)
-)
-
-app.listen(PORT, '0.0.0.0', async () => {
-  console.log('Bot Ready on', PORT)
-  console.log('Using auth directory:', AUTH_DIR)
-
-  try {
-    await loadCommands()
-
-    const { state } = await useMultiFileAuthState(AUTH_DIR)
-
-    if (isPaired(state.creds)) {
-      console.log('Saved session found; connecting...')
-      status.paired = true
-      await createSocket()
-    } else {
-      console.log('No saved session found. Pairing page is ready.')
-    }
-  } catch (e) {
-    console.error('Boot error:', e)
-  }
-})
