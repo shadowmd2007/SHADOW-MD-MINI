@@ -1,96 +1,69 @@
-export const command = {
-  name: 'video',
-  aliases: ['ytv', 'ytmp4'],
-  category: 'DOWNLOADER',
-  description: 'Search and send video',
-  run: async (ctx) => {
-    const query = ctx.args.join(' ').trim();
+const axios = require('axios');
+const yts = require('yt-search');
 
-    if (!query) {
-      return ctx.reply(`🎬 Example: ${ctx.prefix}video cricket highlights`);
-    }
+const BASE = 'https://apis.davidcyriltech.my.id';
 
-    await ctx.reply(`🔎 Searching video: *${query}*`);
+module.exports = async function(session, from, msg) {
+    const sock = session.sock;
+    const body = (msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '').trim();
+    const args = body.split(/ +/).slice(1);
+    const query = args.join(' ').trim();
 
-    let videoPage = '';
-    let title = query;
+    if (!query)
+        return session.safeSendMessage(from, { text: '📹 *Video Downloader*\n\nUsage:\n.video <video name | YouTube link>' }, { quoted: msg });
 
     try {
-      const r = await fetch(
-        `https://apis.davidcyriltech.my.id/youtube/search?query=${encodeURIComponent(query)}`,
-        { signal: AbortSignal.timeout(12000) }
-      );
+        let videoUrl;
+        let videoTitle;
+        let videoThumbnail;
+        let videoDuration;
 
-      if (r.ok) {
-        const j = await r.json();
-        const list = Array.isArray(j.result) ? j.result
-          : Array.isArray(j.results) ? j.results
-          : Array.isArray(j.data) ? j.data : [];
-        const item = list.find(x => x && (x.url || x.videoUrl || x.link));
-
-        if (item) {
-          videoPage = item.url || item.videoUrl || item.link;
-          title = item.title || item.name || query;
+        if (query.includes('youtube.com') || query.includes('youtu.be')) {
+            videoUrl = query;
+        } else {
+            const { videos } = await yts(query);
+            if (!videos?.length)
+                return session.safeSendMessage(from, { text: '❌ No results found.' }, { quoted: msg });
+            videoUrl = videos[0].url;
+            videoTitle = videos[0].title;
+            videoThumbnail = videos[0].thumbnail;
+            videoDuration = videos[0].timestamp;
         }
-      }
-    } catch {}
 
-    if (!videoPage) {
-      return ctx.reply('❌ Video search service se result nahi mila.');
-    }
+        await session.safeSendMessage(from, {
+            image: { url: videoThumbnail || 'https://i.ytimg.com/vi/' + (videoUrl.split('v=')[1] || videoUrl.split('/').pop()) + '/hqdefault.jpg' },
+            caption: `🎬 *${videoTitle || 'YouTube Video'}*\n⏱ ${videoDuration || 'Unknown'}\n\n⏳ Downloading video...`
+        }, { quoted: msg });
 
-    const apis = [
-      `https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoPage)}`,
-      `https://api.vreden.my.id/api/ytmp4?url=${encodeURIComponent(videoPage)}`
-    ];
-
-    function findUrl(v, depth = 0) {
-      if (!v || depth > 5) return '';
-      if (typeof v === 'string') return /^https?:\/\//i.test(v) ? v : '';
-      if (Array.isArray(v)) {
-        for (const x of v) {
-          const found = findUrl(x, depth + 1);
-          if (found) return found;
+        let data;
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                const response = await axios.get(`${BASE}/download/ytmp4?url=${encodeURIComponent(videoUrl)}`, { timeout: 30000 });
+                data = response.data;
+                const downloadUrl = data?.result?.download_url || data?.result?.downloadUrl || data?.result?.url || data?.url || data?.link;
+                if (downloadUrl) break;
+                else throw new Error('Invalid response from API');
+            } catch (err) {
+                retries--;
+                if (retries === 0) throw err;
+                await new Promise(r => setTimeout(r, 2000));
+            }
         }
-      } else if (typeof v === 'object') {
-        for (const k of ['downloadUrl', 'download_url', 'url', 'download', 'video', 'link']) {
-          const found = findUrl(v[k], depth + 1);
-          if (found) return found;
+
+        const downloadUrl = data?.result?.download_url || data?.result?.downloadUrl || data?.result?.url || data?.url || data?.link;
+        if (!downloadUrl) throw new Error('Could not retrieve download link after multiple attempts');
+
+        await session.safeSendMessage(from, {
+            video: { url: downloadUrl },
+            caption: `✅ *${data?.result?.title || videoTitle || 'Video'}*`,
+            mimetype: 'video/mp4'
+        }, { quoted: msg });
+    }
+    catch (err) {
+        console.error('Video plugin error:', err.message);
+        if (err.message !== "Connection Closed") {
+            await session.safeSendMessage(from, { text: `❌ Failed: ${err.message}` }, { quoted: msg }).catch(() => {});
         }
-        for (const val of Object.values(v)) {
-          const found = findUrl(val, depth + 1);
-          if (found) return found;
-        }
-      }
-      return '';
     }
-
-    let videoUrl = '';
-
-    for (const api of apis) {
-      try {
-        const r = await fetch(api, { signal: AbortSignal.timeout(15000) });
-        if (!r.ok) continue;
-        videoUrl = findUrl(await r.json());
-        if (videoUrl) break;
-      } catch {}
-    }
-
-    if (!videoUrl) {
-      return ctx.reply('❌ Video result mila, lekin download service ne link nahi diya.');
-    }
-
-    try {
-      await ctx.sock.sendMessage(ctx.jid, {
-        video: { url: videoUrl },
-        mimetype: 'video/mp4',
-        fileName: `${title.replace(/[\\/:*?"<>|]/g, '_')}.mp4`,
-        caption: `🎬 *${title}*\n\n💖 SHADOW MD`
-      }, { quoted: ctx.m });
-    } catch {
-      return ctx.reply('❌ Video send nahi hui. File size ya download link ka issue ho sakta hai.');
-    }
-  }
 };
-
-export default { command };
